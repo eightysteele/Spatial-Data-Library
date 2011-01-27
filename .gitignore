@@ -1,0 +1,24 @@
+# Production ini #
+##################
+production.ini
+
+# Compiled source #
+###################
+*.pyc
+
+# Logs and databases #
+######################
+*.log
+*.sql
+*.sqlite
+
+# IDE files #
+#############
+*.idea
+*.project
+*.pydevproject
+*.iml
+
+# EMACS temp files #
+####################
+.*~
