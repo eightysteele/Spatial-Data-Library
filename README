@@ -1,1 +1,9 @@
-Initial commit.
+Project: Spatial Data Library
+github: https://github.com/eightysteele/Spatial-Data-Library
+
+Directory layout:
+
+data/ - Spatial data sets for testing.
+lib/ - Python libraries.
+gae/ - The Google App Engine web app.
+tools/ - Project tools.
