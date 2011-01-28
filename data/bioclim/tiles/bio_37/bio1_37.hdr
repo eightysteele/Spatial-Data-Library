@@ -1,0 +1,28 @@
+BYTEORDER     I
+LAYOUT        BIL
+NROWS         3600
+NCOLS         3600
+NBANDS        1
+NBITS         16
+BANDROWBYTES  7200
+TOTALROWBYTES 7200
+BANDGAPBYTES  0
+NODATA        -9999
+ULXMAP        30.00416666667
+ULYMAP        -0.0041666666667
+XDIM          0.008333333333333333
+YDIM          0.008333333333333333
+
+DatabaseName  WorldClim
+Version       1.4
+Release         3
+Created       20060104
+Projection    GEOGRAPHIC
+Datum         WGS84
+MinX          30
+MaxX          60
+MinY          -30
+MaxY          0
+MinValue      -50
+MaxValue      293
+Variable      BIO1 = Annual Mean Temperature
