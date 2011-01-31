@@ -60,9 +60,9 @@ class SandboxHandler(BaseHandler):
 
             within = self.request.get('within', None)
             variable = self.request.get('variable', None)
-            value = int(self.request.get('value', None))
+            value = int(self.request.get('pivot', None))
 
-            within_filter = 'within_%s' % within
+            within_filter = 'within_%s =' % within
 
             query = db.Query(CellIndex, keys_only=True)
             query.filter('variable =', variable).filter(within_filter, value)
@@ -80,9 +80,9 @@ class SandboxHandler(BaseHandler):
             MinValue -50
             MaxValue 293
             """
+            val = 10
             cell = Cell(key_name='f-i-j', json=simplejson.dumps({'variable':'bio1', 'value':10}))
             cell_key = cell.put()
-            val = 10
             cell_index = CellIndex(parent=cell_key, variable='bio1', value=val)
             cell_index.within_1 = [9, 10, 11]
             cell_index.within_10 = range(val - 10, val + 10 + 1)

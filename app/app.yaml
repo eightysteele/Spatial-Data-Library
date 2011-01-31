@@ -10,3 +10,4 @@ builtins:
 handlers:
 - url: /.*
   script: app.py
+  login: admin
