@@ -81,7 +81,8 @@ class SandboxHandler(BaseHandler):
             MaxValue 293
             """
             val = 10
-            cell = Cell(key_name='f-i-j', json=simplejson.dumps({'variable':'bio1', 'value':10}))
+            cell = Cell(key_name='f-i-j',
+                        json=simplejson.dumps({'variable':'bio1', 'value':10}))
             cell_key = cell.put()
             cell_index = CellIndex(parent=cell_key, variable='bio1', value=val)
             cell_index.within_1 = [9, 10, 11]

@@ -1,0 +1,56 @@
+python_preamble:
+- import: base64
+- import: re
+- import: google.appengine.ext.bulkload.transform
+- import: google.appengine.ext.bulkload.bulkloader_wizard
+- import: google.appengine.ext.db
+- import: google.appengine.api.datastore
+- import: google.appengine.api.users
+- import: helper
+
+transformers:
+
+- kind: Cell
+  connector: csv
+  connector_options:
+    encoding: utf_8
+  
+  property_map:
+    - property: __key__
+      external_name: key
+      export_transform: datastore.Key.name
+
+    - property: json
+      external_name: json
+      import_transform: db.Text
+
+    - property: kml
+      external_name: kml
+      import_transform: db.Text
+      
+- kind: CellIndex
+  connector: csv
+  connector_options:
+    encoding: utf_8
+  
+  property_map:
+    - property: __key__
+      external_name: key
+      import_transform: transform.create_deep_key(('Cell', 'key'),
+                            ('CellIndex', transform.CURRENT_PROPERTY))
+                            
+    - property: value
+      external_name: value
+      import_transform: transform.none_if_empty(str)
+
+    - property: variable
+      external_name: variable
+      import_transform: transform.none_if_empty(str)
+
+    - property: within_1
+      external_name: within_1
+      import_transform: helper.toList(list)
+
+    - property: within_10
+      external_name: within_10
+      import_transform: helper.toList(list)

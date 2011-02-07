@@ -22,3 +22,8 @@ production.ini
 # EMACS temp files #
 ####################
 .*~
+
+# App Engine bulkload files #
+#############################
+bulkloader-log*
+bulkloader-progress*
