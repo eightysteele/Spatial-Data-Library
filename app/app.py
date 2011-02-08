@@ -8,7 +8,7 @@ import os
 # ==============================================================================
 # Datastore model
 
-class Cell(db.Model):
+class Cell(db.Expando):
     """Triangular mesh grid cell. 
     
     The key name is the icosahedron face number along with the orthogonal 
@@ -93,7 +93,7 @@ class ApiHandler(BaseHandler):
                 self.error(404)
                 return
             cell = db.get(index.parent())
-            self.response.out.write(simplejson.dumps(_getprops(cell)))
+            self.response.out.write(cell.__getattribute__(variable))
 
 application = webapp.WSGIApplication([('/data/api', ApiHandler),
                                       ('/data/([\w]*)', DataHandler),

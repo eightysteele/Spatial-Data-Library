@@ -19,26 +19,12 @@ transformers:
   
   property_map:
     - property: __key__
-      import_template: "%(key)s_%(variable)s"
-      #external_name: key
+      external_name: key
       export_transform: datastore.Key.name
 
-    - property: value
-      external_name: value
-      import_transform: transform.none_if_empty(int)
-
-    - property: json
+    - property: bio1
       external_name: json
-      import_transform: helper.to_json()
-
-    - property: kml
-      external_name: kml
-      import_transform: db.Text
-      
-    - property: cell
-      external_name: cell
-      import_transform: helper.cellboundary_to_json()
-      
+      import_transform: helper.to_json()      
       
 - kind: CellIndex
   connector: csv
