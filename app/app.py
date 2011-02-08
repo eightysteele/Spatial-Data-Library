@@ -2,9 +2,8 @@ from django.utils import simplejson
 from google.appengine.ext import webapp, db
 from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
-import os
-import logging
 import datetime
+import os
 
 # ==============================================================================
 # Datastore model

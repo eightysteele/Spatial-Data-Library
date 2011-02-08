@@ -1,3 +1,5 @@
+# Test configuration for bulkloading Bio1 Cell and CellIndex entities.
+
 python_preamble:
 - import: base64
 - import: re
@@ -17,16 +19,26 @@ transformers:
   
   property_map:
     - property: __key__
-      external_name: key
+      import_template: "%(key)s_%(variable)s"
+      #external_name: key
       export_transform: datastore.Key.name
+
+    - property: value
+      external_name: value
+      import_transform: transform.none_if_empty(int)
 
     - property: json
       external_name: json
-      import_transform: db.Text
+      import_transform: helper.to_json()
 
     - property: kml
       external_name: kml
       import_transform: db.Text
+      
+    - property: cell
+      external_name: cell
+      import_transform: helper.cellboundary_to_json()
+      
       
 - kind: CellIndex
   connector: csv
@@ -35,22 +47,41 @@ transformers:
   
   property_map:
     - property: __key__
-      external_name: key
-      import_transform: transform.create_deep_key(('Cell', 'key'),
-                            ('CellIndex', transform.CURRENT_PROPERTY))
+      import_template: "%(key)s_%(variable)s"
+      import_transform: helper.create_key()
                             
     - property: value
       external_name: value
-      import_transform: transform.none_if_empty(str)
+      import_transform: transform.none_if_empty(int)
+
+    - property: scaledvalue
+      external_name: scaledvalue
+      import_transform: transform.none_if_empty(int)
 
     - property: variable
       external_name: variable
       import_transform: transform.none_if_empty(str)
 
     - property: within_1
-      external_name: within_1
-      import_transform: helper.toList(list)
+      import_template: "%(scaledvalue)s"
+      import_transform: helper.within_list(1)
+
+    - property: within_2
+      import_template: "%(scaledvalue)s"
+      import_transform: helper.within_list(2)
+
+    - property: within_3
+      import_template: "%(scaledvalue)s"
+      import_transform: helper.within_list(3)
+
+    - property: within_4
+      import_template: "%(scaledvalue)s"
+      import_transform: helper.within_list(4)
+      
+    - property: within_5
+      import_template: "%(scaledvalue)s"
+      import_transform: helper.within_list(5)
 
     - property: within_10
-      external_name: within_10
-      import_transform: helper.toList(list)
+      import_template: "%(scaledvalue)s"
+      import_transform: helper.within_list(10)
