@@ -28,5 +28,25 @@ def experiment_with_gdal():
     data = tile.ReadAsArray(0, 0, 10, 10)
     print data
 
+
+def my_helper(lat, lng):
+    print 'lat=%f, lng=%f' % (lat, lng)
+
+def point2key(lat, lng):
+    '''Converts the lat/lng into a TGM key and returns it.
+    
+    Arguments:
+        lat - the decimal latitude
+        lng - the decimal longitude
+    
+    Returns:
+        The TGM key as a string
+    '''
+    
+    # You can define and call helper methods if it helps:
+    my_helper(lat, lng)
+
+    
 if __name__ == '__main__':    
-    experiment_with_gdal()
+    #experiment_with_gdal()
+    point2key(37.323345, -4.0334334)
