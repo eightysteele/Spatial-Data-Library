@@ -123,7 +123,7 @@ class PostReceiveHooksHandler(BaseHandler):
             body += '%s\n\n' % c['url']
         logging.info(body)
         mail.send_mail(sender="Spatial Datastore Library <admin@geo-ds.appspotmail.com>",
-              to="Aaron <eightysteele@gmail.com>", #, John <tuco@berkeley.edu>, Dave <dave.vieglais@gmail.com>",
+              to="Aaron <eightysteele@gmail.com>, John <tuco@berkeley.edu>, Dave <dave.vieglais@gmail.com>",
               subject=title,
               body=body)        
         
