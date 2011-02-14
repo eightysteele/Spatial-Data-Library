@@ -29,4 +29,3 @@ handlers:
   
 - url: /.*
   script: app.py
-  
