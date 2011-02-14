@@ -1,9 +1,12 @@
-from django.utils import simplejson
 from google.appengine.ext import webapp, db
 from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
-import datetime
+from datetime import datetime
 import os
+import simplejson
+from google.appengine.api import mail
+import logging
+
 
 # ==============================================================================
 # Datastore model
@@ -28,6 +31,56 @@ class CellIndex(db.Expando):
 class Variable(db.Expando):
     """Variable metadata."""
     name = db.StringProperty()
+
+def pretty_date(time=False):
+    """
+    Get a datetime object or a int() Epoch timestamp and return a
+    pretty string like 'an hour ago', 'Yesterday', '3 months ago',
+    'just now', etc
+    """
+
+    import datetime as dt
+
+    now = datetime.now()
+    if type(time) is int:
+        diff = now - datetime.fromtimestamp(time)
+    elif not time:
+        diff = now - now
+    else:
+        diff = now - time
+
+    if type(diff) is dt.timedelta:
+        second_diff = diff.seconds
+        day_diff = diff.days
+    else:
+        second_diff = diff.second
+        day_diff = diff.day
+
+    if day_diff < 0:
+        return ''
+
+    if day_diff == 0:
+        if second_diff < 10:
+            return "just now"
+        if second_diff < 60:
+            return str(second_diff) + " seconds ago"
+        if second_diff < 120:
+            return  "a minute ago"
+        if second_diff < 3600:
+            return str(second_diff / 60) + " minutes ago"
+        if second_diff < 7200:
+            return "an hour ago"
+        if second_diff < 86400:
+            return str(second_diff / 3600) + " hours ago"
+    if day_diff == 1:
+        return "Yesterday"
+    if day_diff < 7:
+        return str(day_diff) + " days ago"
+    if day_diff < 31:
+        return str(day_diff / 7) + " weeks ago"
+    if day_diff < 365:
+        return str(day_diff / 30) + " months ago"
+    return str(day_diff / 365) + " years ago"
 
 def _getprops(obj):
     """Returns dictionary of all static and dynamic properties of an entity."""
@@ -57,6 +110,22 @@ class BaseHandler(webapp.RequestHandler):
         path = os.path.join(os.path.dirname(__file__), "templates", file)
         self.response.out.write(template.render(path, template_args))
 
+class PostReceiveHooksHandler(BaseHandler):    
+    def post(self):
+        payload = self.request.get('payload')
+        json = simplejson.loads(payload)
+        title = '[%s] GIT push update' % json['repository']['name']
+        body = 'The following commits were just pushed:\n'
+        for c in json['commits']:
+            body += '<a href="%s">%s</a>\n' % (c['url'], c['message'])
+            body += '%s (author)\n' % c['author']['name']
+            body += '%s\n\n' % c['timestamp']
+        logging.info(body)
+        mail.send_mail(sender="Spatial Datastore Library <admin@geo-ds.appspotmail.com>",
+              to="Aaron <eightysteele@gmail.com>", #, John <tuco@berkeley.edu>, Dave <dave.vieglais@gmail.com>",
+              subject=title,
+              body=body)        
+        
 class DataListHandler(BaseHandler):
     '''Lists all Variable entities as JSON.'''
     def get(self):
@@ -73,8 +142,8 @@ class DataHandler(BaseHandler):
 
 class ApiHandler(BaseHandler):
     """API handler."""
-
-    def get(self):
+            
+    def post(self):
         action = self.request.get('action', None)
         if not action:
             self.error(404)
@@ -97,7 +166,9 @@ class ApiHandler(BaseHandler):
 
 application = webapp.WSGIApplication([('/data/api', ApiHandler),
                                       ('/data/([\w]*)', DataHandler),
-                                      ('/data', DataListHandler), ], debug=True)
+                                      ('/data', DataListHandler),
+                                      ('/github/post-commit-hook', PostReceiveHooksHandler),
+                                      ], debug=True)
 
 def main():
     run_wsgi_app(application)
