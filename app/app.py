@@ -114,12 +114,13 @@ class PostReceiveHooksHandler(BaseHandler):
     def post(self):
         payload = self.request.get('payload')
         json = simplejson.loads(payload)
-        title = '[%s] GIT push update' % json['repository']['name']
-        body = 'The following commits were just pushed:\n'
+        title = '[%s] New GitHub activity - GIT push' % json['repository']['name']
+        body = 'The following commits were just pushed:\n\n'
         for c in json['commits']:
-            body += '<a href="%s">%s</a>\n' % (c['url'], c['message'])
+            body += '%s\n' % c['message']
             body += '%s (author)\n' % c['author']['name']
-            body += '%s\n\n' % c['timestamp']
+            body += '%s\n' % c['timestamp']
+            body += '%s\n\n' % c['url']
         logging.info(body)
         mail.send_mail(sender="Spatial Datastore Library <admin@geo-ds.appspotmail.com>",
               to="Aaron <eightysteele@gmail.com>", #, John <tuco@berkeley.edu>, Dave <dave.vieglais@gmail.com>",
