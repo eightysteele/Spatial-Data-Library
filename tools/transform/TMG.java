@@ -413,6 +413,12 @@ public abstract class TMG {
   }
 
   public static void main(String args[]) {
+	  if (args.length > 0) {
+		  double lat = Double.valueOf(args[0]);
+		  double lng = Double.valueOf(args[1]);
+		  System.out.printf("lat=%s, lng=%s, key=%s\n", lat, lng, getTMGKey(lat,lng));
+		  return;
+	  }
     // System.out.println("phi: " + phi + "\nvertexangle: " + vertexangle
     // + "\nvertexlat: " + vertexlat + "\ncenterangle: " + centerangle
     // + "\nfacecenterlat: " + facecenterlat + "\nedgelength: " + edgelength
