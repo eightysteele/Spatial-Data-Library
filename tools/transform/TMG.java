@@ -127,17 +127,13 @@ public abstract class TMG {
     return newlat;
   }
 
-  public static double canonicalLongitude(double lat, double lng) { // checked
+  public static double canonicalLongitude(double lat, double lng) {
     int face = getFace(lat, lng);
     double clng = lng360(lng);
-    if (face < 5) {
-      clng -= face * 72;
-    } else if (face < 10) {
-      clng = clng - (face - 5) * 72;
-    } else if (face < 15) {
-      clng = clng - 36 - (face - 10) * 72;
+    if (face >= 10 && face < 15) {
+      clng = clng - 36 - (face % 5) * 72;
     } else {
-      clng = clng - 36 - (face - 15) * 72;
+      clng = clng - (face % 5) * 72;
     }
     return lng360(clng);
   }
@@ -242,16 +238,18 @@ public abstract class TMG {
     // double clng = canonicalLongitude(getFace(lat, lng), lng);
     double d0 = 0;
     double d3 = 0;
-    if (clat < vertexlat) { // face 5, use SE edge for i index
+    // cface id the canonical face, either 0 or 5
+    int cface = getFace(clat, clng);
+    if (cface == 5) { // face 5, use SE edge for i index
       // d3 is the distance from the canonical lat lng to the E vertex
       d3 = cartesianDistance(clat, clng, vertexlat, 36, semimajoraxis);
       if (d3 < 1) {
-        return 0;
+        return cellcount - 1;
       }
       // d0 is the distance from the canonical lat lng to the S vertex
       d0 = cartesianDistance(clat, clng, -vertexlat, 0, semimajoraxis);
       if (d0 < 1) {
-        return cellcount - 1;
+        return 0;
       }
     } else { // face 0, use NW edge for i index
       // d0 is the distance from the canonical lat lng to the W vertex
@@ -413,12 +411,13 @@ public abstract class TMG {
   }
 
   public static void main(String args[]) {
-	  if (args.length > 0) {
-		  double lat = Double.valueOf(args[0]);
-		  double lng = Double.valueOf(args[1]);
-		  System.out.printf("lat=%s, lng=%s, key=%s\n", lat, lng, getTMGKey(lat,lng));
-		  return;
-	  }
+    if (args.length > 0) {
+      double lat = Double.valueOf(args[0]);
+      double lng = Double.valueOf(args[1]);
+      System.out.printf("lat=%s, lng=%s, key=%s\n", lat, lng, getTMGKey(lat,
+          lng));
+      return;
+    }
     // System.out.println("phi: " + phi + "\nvertexangle: " + vertexangle
     // + "\nvertexlat: " + vertexlat + "\ncenterangle: " + centerangle
     // + "\nfacecenterlat: " + facecenterlat + "\nedgelength: " + edgelength
