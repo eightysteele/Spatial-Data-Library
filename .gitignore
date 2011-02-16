@@ -5,6 +5,7 @@ production.ini
 # Compiled source #
 ###################
 *.pyc
+*.class
 
 # Logs and databases #
 ######################
@@ -18,6 +19,7 @@ production.ini
 *.project
 *.pydevproject
 *.iml
+
 
 # EMACS temp files #
 ####################
