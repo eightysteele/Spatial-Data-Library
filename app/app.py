@@ -1,12 +1,30 @@
+#!/usr/bin/env python
+#
+# Copyright 2011 Jante LLC and University of Kansas
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+from datetime import datetime
+from google.appengine.api import mail, memcache as m
 from google.appengine.ext import webapp, db
 from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
-from datetime import datetime
+from sdl import tmg
+import logging
 import os
 import simplejson
-from google.appengine.api import mail
-import logging
 
+memcache = m.Client()
 
 # ==============================================================================
 # Datastore model
@@ -110,7 +128,7 @@ class BaseHandler(webapp.RequestHandler):
         path = os.path.join(os.path.dirname(__file__), "templates", file)
         self.response.out.write(template.render(path, template_args))
 
-class PostReceiveHooksHandler(BaseHandler):    
+class GitHubPostReceiveHooksHandler(BaseHandler):    
     def post(self):
         payload = self.request.get('payload')
         json = simplejson.loads(payload)
@@ -141,34 +159,59 @@ class DataHandler(BaseHandler):
             return
         self.response.out.write(simplejson.dumps(_getprops(entity)))
 
+
 class ApiHandler(BaseHandler):
     """API handler."""
-            
-    def post(self):
-        action = self.request.get('action', None)
-        if not action:
+    
+    def searchLatLng(self, ll):
+        '''Searches for Cell associated with lat/lng and returns Cell.json.'''
+        cell = memcache.get(ll)
+        if cell:
+            self.response.out.write(cell.bio1)
+            return;
+        try:
+            lat, lng = ll.replace(' ', '').split(',')
+            key = tmg.Rhomboid(float(lat), float(lng)).key
+        except (Exception), e:
+            logging.error(str(e))
+            self.error(400)
+            return
+        cell = Cell.get_by_key_name(key)
+        logging.info('key=%s, cell=%s' % (key, cell))
+        if not cell:
             self.error(404)
             return
-        if action == 'search':
-            within = self.request.get('within', None)
-            variable = self.request.get('variable', None)
-            value = int(self.request.get('pivot', None))
+        memcache.add(ll, cell)
+        self.response.out.write(cell.bio1)
+    
+    def get(self):
+        self.post()
+             
+    def post(self):
+        ll = self.request.get('ll', None)
+        if ll:
+            self.searchLatLng(ll)
+            return
+        
+        within = self.request.get('within', None)
+        variable = self.request.get('variable', None)
+        value = int(self.request.get('pivot', None))
 
-            within_filter = 'within_%s =' % within
+        within_filter = 'within_%s =' % within
 
-            query = db.Query(CellIndex, keys_only=True)
-            query.filter('variable =', variable).filter(within_filter, value)
-            index = query.get()
-            if not index:
-                self.error(404)
-                return
-            cell = db.get(index.parent())
-            self.response.out.write(cell.__getattribute__(variable))
+        query = db.Query(CellIndex, keys_only=True)
+        query.filter('variable =', variable).filter(within_filter, value)
+        index = query.get()
+        if not index:
+            self.error(404)
+            return
+        cell = db.get(index.parent())
+        self.response.out.write(cell.__getattribute__(variable))
 
 application = webapp.WSGIApplication([('/data/api', ApiHandler),
                                       ('/data/([\w]*)', DataHandler),
                                       ('/data', DataListHandler),
-                                      ('/github/post-commit-hook', PostReceiveHooksHandler),
+                                      ('/github/post-commit-hook', GitHubPostReceiveHooksHandler),
                                       ], debug=True)
 
 def main():

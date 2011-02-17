@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import logging
 import math
 
@@ -282,5 +283,4 @@ if __name__ == '__main__':
             logging.debug(out)
             f.write('%s\n' % out)
     f.flush()
-    f.close()
-    
+    f.close()    
