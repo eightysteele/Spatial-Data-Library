@@ -129,13 +129,43 @@ class BaseHandler(webapp.RequestHandler):
         self.response.out.write(template.render(path, template_args))
 
 class CellHandler(BaseHandler):
+    KML = u'''<?xml version="1.0" encoding="utf-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Placemark>
+    <name>Tessellated</name>
+    <visibility>1</visibility>
+    <description></description>
+    <LinearRing>
+      <tessellate>1</tessellate>
+      <coordinates>
+        %s,0
+        %s,0,
+        %s,0,
+        %s,0,
+        %s,0
+      </coordinates>
+    </LinearRing>
+  </Placemark>
+</kml>'''
+
     def get(self, n, x, y):
         try:
-            polygon = tmg.Cell.polygon(int(n), int(x), int(y))
+            cell_count = self.request.get('cc', None)
+            if cell_count is not None:
+                cell_count = int(cell_count)
+            polygon = tmg.Cell.polygon(int(n), int(x), int(y), cell_count)
         except (Exception), e:
             logging.error(str(e))
             self.error(404)
-        self.response.out.write(simplejson.dumps(polygon))
+            return
+        if self.request.get('output', None) == 'kml':            
+            data = tuple(['%s, %s' % (c[0], c[1]) for c in polygon])
+            kml = CellHandler.KML % data
+            self.response.headers['Content-Type'] = 'application/vnd.google-earth.kml+xml'
+            self.response.out.write(kml)
+        else:
+            self.response.headers['Content-Type'] = 'application/json'
+            self.response.out.write(simplejson.dumps(polygon))
                                 
 class GitHubPostReceiveHooksHandler(BaseHandler):    
     def post(self):

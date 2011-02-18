@@ -77,53 +77,62 @@ class Cell(object):
         return (newlat, newlng)
 
     @staticmethod
-    def polygon(rhomboid_num, x_index, y_index):
-        return [Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_south_point(x_index, y_index)),
-                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_east_point(x_index, y_index)),
-                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_north_point(x_index, y_index)),
-                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_west_point(x_index, y_index)),
-                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_south_point(x_index, y_index))
+    def polygon(rhomboid_num, x_index, y_index, cell_count=None):
+        p0 = Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_south_point(x_index, y_index, cell_count))
+        return [p0,
+                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_east_point(x_index, y_index, cell_count)),
+                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_north_point(x_index, y_index, cell_count)),
+                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_west_point(x_index, y_index, cell_count)),
+                p0
                 ]
 
     @staticmethod
-    def get_canonical_south_point(x_index, y_index):
+    def get_canonical_south_point(x_index, y_index, cell_count=None):
+        if not cell_count:
+            cell_count = CELL_COUNT
         # Canonical rhomboid 0 has origin at -VERTEX_LAT, 0
         lat_lng0 = (-VERTEX_LAT, 0)
         axis_lat_lng = (VERTEX_ANGLE, -108)
         lat0 = -VERTEX_LAT
         lng0 = 0
         # Rotate NE from the origin by x_index cell widths
-        lat_lng = Cell.rotate(lat_lng0, axis_lat_lng, VERTEX_ANGLE * x_index / CELL_COUNT)
+        lat_lng = Cell.rotate(lat_lng0, axis_lat_lng, VERTEX_ANGLE * x_index / cell_count)
             
         # Rotate NW from there by y_index cell widths
-        lat_lng = Cell.rotate(lat_lng, (-VERTEX_ANGLE, -108), VERTEX_ANGLE * y_index / CELL_COUNT)
+        lat_lng = Cell.rotate(lat_lng, (-VERTEX_ANGLE, -108), VERTEX_ANGLE * y_index / cell_count)
 
         return (lat_lng)
 
     @staticmethod
-    def get_canonical_east_point(x_index, y_index):
+    def get_canonical_east_point(x_index, y_index, cell_count=None):
+        if not cell_count:
+            cell_count = CELL_COUNT
         # Start at canonical south point
         lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
         # Rotate NE from there by one cell width
-        lat_lng = Cell.rotate(lat_lng0, (VERTEX_ANGLE, -108), VERTEX_ANGLE / CELL_COUNT)
+        lat_lng = Cell.rotate(lat_lng0, (VERTEX_ANGLE, -108), VERTEX_ANGLE / cell_count)
 
         return (lat_lng)
 
     @staticmethod
-    def get_canonical_west_point(x_index, y_index):
+    def get_canonical_west_point(x_index, y_index, cell_count=None):
+        if not cell_count:
+            cell_count = CELL_COUNT
         # Start at canonical south point
         lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
         # Rotate NW from there by one cell width
-        lat_lng = Cell.rotate(lat_lng0, (-VERTEX_ANGLE, -108), VERTEX_ANGLE / CELL_COUNT)
+        lat_lng = Cell.rotate(lat_lng0, (-VERTEX_ANGLE, -108), VERTEX_ANGLE / cell_count)
 
         return (lat_lng)
 
     @staticmethod
-    def get_canonical_north_point(x_index, y_index):
+    def get_canonical_north_point(x_index, y_index, cell_count=None):
+        if not cell_count:
+            cell_count = CELL_COUNT
         # Start at canonical east point
         lat_lng0 = Cell.get_canonical_east_point(x_index, y_index)
         # Rotate NW from there by one cell width
-        lat_lng = Cell.rotate(lat_lng0, (-VERTEX_ANGLE, -108), VERTEX_ANGLE / CELL_COUNT)
+        lat_lng = Cell.rotate(lat_lng0, (-VERTEX_ANGLE, -108), VERTEX_ANGLE / cell_count)
 
         return (lat_lng)
 
