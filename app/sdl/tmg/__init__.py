@@ -52,6 +52,97 @@ def lng360(lng):
 def sqr(x):
     return x * x
 
+class Cell(object):
+    @staticmethod
+    def rotate(lat_lng, axis_lat_lng, rotation_angle):
+        x = math.cos(lat_lng[0] * RADIANS) * math.cos(lat_lng[1] * RADIANS)
+        y = math.cos(lat_lng[0] * RADIANS) * math.sin(lat_lng[1] * RADIANS)
+        z = math.sin(lat_lng[0] * RADIANS)
+        c1 = math.cos(axis_lat_lng[0] * RADIANS) * math.cos(axis_lat_lng[1] * RADIANS)
+        c2 = math.cos(axis_lat_lng[0] * RADIANS) * math.sin(axis_lat_lng[1] * RADIANS)
+        c3 = math.sin(axis_lat_lng[0] * RADIANS)
+        cosa = math.cos(rotation_angle * RADIANS)
+        sina = math.sin(rotation_angle * RADIANS)
+        x1 = x * cosa
+        x1 = x1 + ((1 - cosa) * (c1 * c1 * x + c1 * c2 * y + c1 * c3 * z))
+        x1 = x1 + (c2 * z - c3 * y) * sina
+        y1 = y * cosa
+        y1 = y1 + ((1 - cosa) * (c2 * c1 * x + c2 * c2 * y + c2 * c3 * z))
+        y1 = y1 + (c3 * x - c1 * z) * sina
+        z1 = z * cosa
+        z1 = z1 + ((1 - cosa) * (c3 * c1 * x + c3 * c2 * y + c3 * c3 * z))
+        z1 = z1 + (c1 * y - c2 * x) * sina
+        newlat = math.asin(z1) / RADIANS
+        newlng = math.atan2(y1, x1)
+        return (newlat, newlng)
+
+    @staticmethod
+    def polygon(rhomboid_num, x_index, y_index):
+        return [Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_south_point(x_index, y_index)),
+                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_east_point(x_index, y_index)),
+                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_north_point(x_index, y_index)),
+                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_west_point(x_index, y_index)),
+                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_south_point(x_index, y_index))
+                ]
+
+    @staticmethod
+    def get_canonical_south_point(x_index, y_index):
+        # Canonical rhomboid 0 has origin at -VERTEX_LAT, 0
+        lat_lng0 = (-VERTEX_LAT, 0)
+        axis_lat_lng = (VERTEX_ANGLE, -108)
+        lat0 = -VERTEX_LAT
+        lng0 = 0
+        # Rotate NE from the origin by x_index cell widths
+        lat_lng = Cell.rotate(lat_lng0, axis_lat_lng, VERTEX_ANGLE * x_index / CELL_COUNT)
+            
+        # Rotate NW from there by y_index cell widths
+        lat_lng = Cell.rotate(lat_lng, (-VERTEX_ANGLE, -108), VERTEX_ANGLE * y_index / CELL_COUNT)
+
+        return (lat_lng)
+
+    @staticmethod
+    def get_canonical_east_point(x_index, y_index):
+        # Start at canonical south point
+        lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
+        # Rotate NE from there by one cell width
+        lat_lng = Cell.rotate(lat_lng0, (VERTEX_ANGLE, -108), VERTEX_ANGLE / CELL_COUNT)
+
+        return (lat_lng)
+
+    @staticmethod
+    def get_canonical_west_point(x_index, y_index):
+        # Start at canonical south point
+        lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
+        # Rotate NW from there by one cell width
+        lat_lng = Cell.rotate(lat_lng0, (-VERTEX_ANGLE, -108), VERTEX_ANGLE / CELL_COUNT)
+
+        return (lat_lng)
+
+    @staticmethod
+    def get_canonical_north_point(x_index, y_index):
+        # Start at canonical east point
+        lat_lng0 = Cell.get_canonical_east_point(x_index, y_index)
+        # Rotate NW from there by one cell width
+        lat_lng = Cell.rotate(lat_lng0, (-VERTEX_ANGLE, -108), VERTEX_ANGLE / CELL_COUNT)
+
+        return (lat_lng)
+
+    @staticmethod
+    def get_point_from_canonical(rhomboid, lat_lng):
+        if rhomboid < 5:
+            # Latitude is correct already
+            return (lat_lng[0], lat_lng[1] + rhomboid % 5 * 72)
+        else:
+            # Start by rotating SE to rhomboid 5
+            se_lat_lng = Cell.rotate(lat_lng, (VERTEX_ANGLE, 108), 72)
+            # Then do Longitude rotation
+            return (se_lat_lng[0], se_lat_lng[1] + 36 + rhomboid % 5 * 72)
+
+    def __init__(self, rhomboid_num, x_index, y_index):
+        self.rhomboid_num = rhomboid_num
+        self.x_index = x_index
+        self.y_index = y_index
+    
 class Face(object):
     @staticmethod
     def get_northern(lng):
@@ -116,6 +207,27 @@ class Face(object):
 
 class Rhomboid(object):
     @staticmethod
+    def canonical_lat(face):
+        if face.num < 10:
+            return face.lat
+        clng = Rhomboid.canonical_lng(face)
+        x = math.cos(face.lat * RADIANS) * math.cos(clng * RADIANS)
+        y = math.cos(face.lat * RADIANS) * math.sin(clng * RADIANS)
+        z = math.sin(face.lat * RADIANS)
+        c1 = COS_VERTEX_LAT * COS_72
+        c2 = COS_VERTEX_LAT * SIN_72
+        c3 = SIN_VERTEX_LAT
+        cosa = COS_72
+        sina = -(SIN_72)
+        z1 = z * cosa
+        z1 = z1 + ((1 - cosa) * (c3 * c1 * x + c3 * c2 * y + c3 * c3 * z))
+        z1 = z1 + (((c1 * y) - (c2 * x)) * sina)
+        newlat = math.asin(z1) / RADIANS
+#        out = 'canonical_lat(face.num=%s) x=%s, y=%s, z=%s z1=%s face.lat=%s clng=%s' % (face.num, x, y, z, z1, face.lat, clng)
+#        logging.debug(out)
+        return newlat
+    
+    @staticmethod
     def canonical_lng(face):
         clng = lng360(face.lng)
         if face.num >= 10 and face.num < 15:
@@ -145,28 +257,7 @@ class Rhomboid(object):
         return dist
     
     @staticmethod
-    def canonical_lat(face):
-        if face.num < 10:
-            return face.lat
-        clng = Rhomboid.canonical_lng(face)
-        x = math.cos(face.lat * RADIANS) * math.cos(clng * RADIANS)
-        y = math.cos(face.lat * RADIANS) * math.sin(clng * RADIANS)
-        z = math.sin(face.lat * RADIANS)
-        c1 = COS_VERTEX_LAT * COS_72
-        c2 = COS_VERTEX_LAT * SIN_72
-        c3 = SIN_VERTEX_LAT
-        cosa = COS_72
-        sina = -(SIN_72)
-        z1 = z * cosa
-        z1 = z1 + ((1 - cosa) * (c3 * c1 * x + c3 * c2 * y + c3 * c3 * z))
-        z1 = z1 + (((c1 * y) - (c2 * x)) * sina)
-        newlat = math.asin(z1) / RADIANS
-#        out = 'canonical_lat(face.num=%s) x=%s, y=%s, z=%s z1=%s face.lat=%s clng=%s' % (face.num, x, y, z, z1, face.lat, clng)
-#        logging.debug(out)
-        return newlat
-    
-    @staticmethod
-    def calc_facet(face):
+    def calc_num(face):
         if face.num < 10:
             facet = face.num % 5
         else:
@@ -264,36 +355,7 @@ class Rhomboid(object):
         self.face = Face(lat, lng)
         self.clat = self.canonical_lat(self.face)
         self.clng = self.canonical_lng(self.face)
-        self.facet = self.calc_facet(self.face)
+        self.num = self.calc_num(self.face)
         self.x = self.calc_x(self.clat, self.clng)
         self.y = self.calc_y(self.clat, self.clng)
-        self.key = '%s-%s-%s' % (self.facet, self.x, self.y)
-
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)    
-    
-    xcellcount = 6
-    ycellcount = 10
-    
-    f = open('python.out', 'w')
-    
-#    lat=18
-#    lng=60
-#    r = Rhomboid(lat, lng)
-#    out = '===lat=%s, lng=%s, key=%s clat=%s clng=%s' % (r.face.lat, r.face.lng, r.key, r.clat, r.clng)
-#    logging.debug(out)
-#    f.write('%s\n' % out)
-
-    for j in range(0, xcellcount + 1):
-      lng = float(-180 + j * 360 / xcellcount)
-      for i in range(0, ycellcount + 1):
-        lat = float(-90 + i * 180 / ycellcount)    
-        r = Rhomboid(lat, lng)
-        out = 'lat=%s, lng=%s, key=%s' % (r.face.lat, r.face.lng, r.key)
-        logging.debug(out)
-        f.write('%s\n' % out)
-
-    f.flush()
-    f.close()
-    
+        self.key = '%s-%s-%s' % (self.num, self.x, self.y)

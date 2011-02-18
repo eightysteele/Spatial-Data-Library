@@ -128,6 +128,15 @@ class BaseHandler(webapp.RequestHandler):
         path = os.path.join(os.path.dirname(__file__), "templates", file)
         self.response.out.write(template.render(path, template_args))
 
+class CellHandler(BaseHandler):
+    def get(self, n, x, y):
+        try:
+            polygon = tmg.Cell.polygon(int(n), int(x), int(y))
+        except (Exception), e:
+            logging.error(str(e))
+            self.error(404)
+        self.response.out.write(simplejson.dumps(polygon))
+                                
 class GitHubPostReceiveHooksHandler(BaseHandler):    
     def post(self):
         payload = self.request.get('payload')
@@ -208,11 +217,13 @@ class ApiHandler(BaseHandler):
         cell = db.get(index.parent())
         self.response.out.write(cell.__getattribute__(variable))
 
-application = webapp.WSGIApplication([('/data/api', ApiHandler),
-                                      ('/data/([\w]*)', DataHandler),
-                                      ('/data', DataListHandler),
-                                      ('/github/post-commit-hook', GitHubPostReceiveHooksHandler),
-                                      ], debug=True)
+application = webapp.WSGIApplication(
+        [('/data/api', ApiHandler),
+         ('/data/([\w]*)', DataHandler),
+         ('/data', DataListHandler),
+         ('/cells/([\d]+)/([\d]+)/([\d]+)', CellHandler),
+         ('/github/post-commit-hook', GitHubPostReceiveHooksHandler),
+         ], debug=True)
 
 def main():
     run_wsgi_app(application)
