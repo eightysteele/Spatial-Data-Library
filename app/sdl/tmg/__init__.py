@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import logging
 import math
 
@@ -118,12 +119,14 @@ class Rhomboid(object):
     @staticmethod
     def canonical_lng(face):
         clng = lng360(face.lng)
-        if face.num >=10 and face.num < 15:
-            clng = clng - 36 - (face.num % 5) * 72;
+        if face.num < 5:
+            clng = clng - (face.num * 72)
+        elif face.num < 10:
+            clng = clng - ((face.num - 5) * 72)
+        elif face.num < 15:
+            clng = clng - 36 - ((face.num - 10) * 72)
         else:
-            clng = clng - (face.num % 5) * 72;
-#        out = 'canonical_lng(face.num=%s), clng=%s' % (face.num, clng)
-#        logging.debug(out)
+            clng = clng - 36 - ((face.num - 15) * 72);
         return lng360(clng)
     
     @staticmethod
@@ -138,10 +141,6 @@ class Rhomboid(object):
         dist = dist + sqr(from_y - to_y)
         dist = dist + sqr(from_z - to_z)
         dist = math.sqrt(dist)
-#        out = 'fromlat = %s fromlng = %s \ntolat = %s tolng = %s' % (fromlat, fromlng, tolat, tolng)
-#        logging.debug(out)
-#        out = 'dist = %s \n  from_x = %s, from_y = %s from_z = %s \n  to_x = %s to_y = %s to_z = %s' % (dist, from_x, from_y, from_z, to_x, to_y, to_z)
-#        logging.debug(out)
         return dist
     
     @staticmethod
@@ -158,11 +157,9 @@ class Rhomboid(object):
         cosa = COS_72
         sina = -(SIN_72)
         z1 = z * cosa
-        z1 = z1 + ((1 - cosa) * (c3 * c1 * x + c3 * c2 * y + c3 * c3 * z))
+        z1 = z1 + ((1 - cosa) * c3 * c1 * x + c3 * c2 * y + c3 * c3 * z)
         z1 = z1 + (((c1 * y) - (c2 * x)) * sina)
         newlat = math.asin(z1) / RADIANS
-#        out = 'canonical_lat(face.num=%s) x=%s, y=%s, z=%s z1=%s face.lat=%s clng=%s' % (face.num, x, y, z, z1, face.lat, clng)
-#        logging.debug(out)
         return newlat
     
     @staticmethod
@@ -175,10 +172,7 @@ class Rhomboid(object):
 
     @staticmethod
     def get_x_dist(clat, clng):
-        cface=Face.get_face_number(clat, clng)
-#        out = 'get_x_dist(clat = %s clng = %s) VERTEX_LAT = %s diff = %s' % (clat, clng, VERTEX_LAT, VERTEX_LAT-clat)
-#        logging.debug(out)
-        if cface == 5:
+        if clat < VERTEX_LAT:
             d3 = Rhomboid.cartesian_dist(clat, clng, VERTEX_LAT, 36, SEMI_MAJOR_AXIS)
             d0 = Rhomboid.cartesian_dist(clat, clng, -(VERTEX_LAT), 0, SEMI_MAJOR_AXIS)
         else:
@@ -188,8 +182,7 @@ class Rhomboid(object):
 
     @staticmethod
     def get_y_dist(clat, clng):
-        cface = Face.get_face_number(clat, clng)
-        if cface == 5:
+        if clat < VERTEX_LAT:
             d0 = Rhomboid.cartesian_dist(clat, clng, -(VERTEX_LAT), 0, SEMI_MAJOR_AXIS)
             d0 = math.floor(d0)
             d1 = Rhomboid.cartesian_dist(clat, clng, VERTEX_LAT, -36, SEMI_MAJOR_AXIS)
@@ -204,7 +197,7 @@ class Rhomboid(object):
     @staticmethod
     def get_x_edge_fraction(d0, d3):
         dist_from_d0 = (EDGE_LENGTH * EDGE_LENGTH - d3 * d3 + d0 * d0) / (2 * EDGE_LENGTH)
-        h = math.sqrt(d0 * d0 - dist_from_d0 * dist_from_d0)
+        h = math.sqrt(sqr(d0) - sqr(dist_from_d0))
         dp = h * math.tan(30 * RADIANS)        
         dist_from_d0 = dist_from_d0 + dp
         if dist_from_d0 > (d0 / 2):
@@ -219,7 +212,7 @@ class Rhomboid(object):
     @staticmethod
     def get_y_edge_fraction(d0, d1):
         dist_from_d0 = (EDGE_LENGTH * EDGE_LENGTH - d1 * d1 + d0 * d0) / (EDGE_LENGTH * 2)
-        h = math.sqrt(d0*d0 - dist_from_d0*dist_from_d0)        
+        h = math.sqrt(sqr(d0) - sqr(dist_from_d0))        
         dp = h * math.tan(30 * RADIANS) 
         dist_from_d0 = dist_from_d0 + dp       
         dist_from_d0 = math.floor(dist_from_d0)
@@ -233,13 +226,15 @@ class Rhomboid(object):
         return edge_fraction
         
     @staticmethod
-    def calc_x(clat, clng):
+    def calc_x(face, clat, clng):
         d0, d3 = Rhomboid.get_x_dist(clat, clng)
-#        out = 'd0=%s, d3=%s' % (d0, d3)
-#        logging.debug(out)
-        if d3 < 1:
+        if clat < VERTEX_LAT and d3 < 1:
+            return 0
+        if clat < VERTEX_LAT and d0 < 1:
+            return CELL_COUNT - 1
+        if clat >= VERTEX_LAT and d3 < 1:
             return CELL_COUNT - 1;
-        if d0 < 1:
+        if clat >= VERTEX_LAT and d0 < 1:
             return 0;        
         edge_fraction = Rhomboid.get_x_edge_fraction(d0, d3)
         cell_index = int(CELL_COUNT * edge_fraction)
@@ -247,14 +242,16 @@ class Rhomboid(object):
         
         
     @staticmethod
-    def calc_y(clat, clng):
+    def calc_y(face, clat, clng):
         d0, d1 = Rhomboid.get_y_dist(clat, clng)
-#        out = 'd0=%s, d1=%s' % (d0, d1)
-#        logging.debug(out)
-        if d0 < 1:
+        if clat < VERTEX_LAT and d0 < 1:
             return 0
-        if d1 < 1:
+        if clat < VERTEX_LAT and d1 < 1:
             return CELL_COUNT - 1
+        if clat >= VERTEX_LAT and d0 < 1:
+            return 0;
+        if clat >= VERTEX_LAT and d1 < 1:
+            return CELL_COUNT - 1;
         edge_fraction = Rhomboid.get_y_edge_fraction(d0, d1)
         cell_index = int(CELL_COUNT * edge_fraction)
         return cell_index
@@ -265,35 +262,25 @@ class Rhomboid(object):
         self.clat = self.canonical_lat(self.face)
         self.clng = self.canonical_lng(self.face)
         self.facet = self.calc_facet(self.face)
-        self.x = self.calc_x(self.clat, self.clng)
-        self.y = self.calc_y(self.clat, self.clng)
+        self.x = self.calc_x(self.face, self.clat, self.clng)
+        self.y = self.calc_y(self.face, self.clat, self.clng)
         self.key = '%s-%s-%s' % (self.facet, self.x, self.y)
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)    
     
-    xcellcount = 6
-    ycellcount = 10
+    xcellcount = 1
+    ycellcount = 180 * 120
     
     f = open('python.out', 'w')
-    
-#    lat=18
-#    lng=60
-#    r = Rhomboid(lat, lng)
-#    out = '===lat=%s, lng=%s, key=%s clat=%s clng=%s' % (r.face.lat, r.face.lng, r.key, r.clat, r.clng)
-#    logging.debug(out)
-#    f.write('%s\n' % out)
-
     for j in range(0, xcellcount + 1):
-      lng = float(-180 + j * 360 / xcellcount)
-      for i in range(0, ycellcount + 1):
-        lat = float(-90 + i * 180 / ycellcount)    
-        r = Rhomboid(lat, lng)
-        out = 'lat=%s, lng=%s, key=%s' % (r.face.lat, r.face.lng, r.key)
-        logging.debug(out)
-        f.write('%s\n' % out)
-
+        lng = float(-180 + j * 360 / xcellcount)
+        for i in range(0, ycellcount + 1):
+            lat = float(-90 + i * 180 / ycellcount)
+            r = Rhomboid(lat, lng)
+            out = 'lat=%s, lng=%s, key=%s' % (r.face.lat, r.face.lng, r.key)
+            logging.debug(out)
+            f.write('%s\n' % out)
     f.flush()
-    f.close()
-    
+    f.close()    
