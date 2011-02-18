@@ -91,7 +91,7 @@ public abstract class TMG {
       return lat;
     }
     // Get the canonical longitude.
-    double clng = canonicalLongitude(face, lng);
+    double clng = canonicalLongitude(lat, lng);
     double newlat = 0;
     // double newlng = 0;
     // Original Cartesian coordinates of lat, lng.
@@ -124,6 +124,8 @@ public abstract class TMG {
     // newlat and newlng are the equivalent to lat and lng in face 0
     newlat = Math.asin(z1) / radians;
     // newlng = Math.atan2(y1, x1) / radians;
+    // System.out.println("x=" + x + " y=" + y + " z=" + z + " z1=" + z1
+    // + " lat= " + lat + " clng= " + clng);
     return newlat;
   }
 
@@ -135,6 +137,8 @@ public abstract class TMG {
     } else {
       clng = clng - (face % 5) * 72;
     }
+    // System.out.println("canonicalLongtitude: face=" + face + " clng=" +
+    // clng);
     return lng360(clng);
   }
 
@@ -152,9 +156,14 @@ public abstract class TMG {
     double to_y = radius * Math.cos(tolat * radians)
         * Math.sin(tolng * radians);
     double to_z = radius * Math.sin(tolat * radians);
-
-    return Math.sqrt((from_x - to_x) * (from_x - to_x) + (from_y - to_y)
+    double dist = Math.sqrt((from_x - to_x) * (from_x - to_x) + (from_y - to_y)
         * (from_y - to_y) + (from_z - to_z) * (from_z - to_z));
+    // System.out.println("fromlat = " + fromlat + " fromlng = " + fromlng
+    // + "\ntolat = " + tolat + " tolng = " + tolng);
+    // System.out.println("dist = " + dist + "\n  from_x = " + from_x
+    // + " from_y = " + from_y + " from_z = " + from_z + "\n  to_x = " + to_x
+    // + " to_y = " + to_y + " to_z = " + to_z);
+    return dist;
   }
 
   public static double centerlat(int face) { // checked
@@ -234,8 +243,6 @@ public abstract class TMG {
   // canonical facet.
   // Use only canonicalLatitude and canonicalLongitude in calls to getRhomboidX.
   public static int getRhomboidX(double clat, double clng) {
-    // double clat = canonicalLatitude(lat, lng);
-    // double clng = canonicalLongitude(getFace(lat, lng), lng);
     double d0 = 0;
     double d3 = 0;
     // cface id the canonical face, either 0 or 5
@@ -280,6 +287,7 @@ public abstract class TMG {
     double edgefraction = edgeangle / vertexangle;
     double cell = cellcount * edgefraction;
     int index = (int) cell;
+    // System.out.println("d0: " + d0 + " d1:" + d3);
     return index - 1;
   }
 
@@ -288,11 +296,11 @@ public abstract class TMG {
   // canonical facet.
   // Use only canonicalLatitude and canonicalLongitude in calls to getRhomboidY.
   public static int getRhomboidY(double clat, double clng) {
-    // double clat = canonicalLatitude(lat, lng);
-    // double clng = canonicalLongitude(getFace(lat, lng), lng);
     double d0;
     double d1;
-    if (clat < vertexlat) { // face 5, use SW edge for j index
+    // cface id the canonical face, either 0 or 5
+    int cface = getFace(clat, clng);
+    if (cface == 5) { // face 5, use SW edge for j index
       // d0 is the distance from the canonical lat lng to the S vertex
       d0 = Math.floor(cartesianDistance(clat, clng, -vertexlat, 0,
           semimajoraxis));
@@ -334,6 +342,7 @@ public abstract class TMG {
     double edgefraction = edgeangle / vertexangle;
     double cell = cellcount * edgefraction;
     int index = (int) cell;
+    // System.out.println("d0: " + d0 + " d1:" + d1);
     return index;
   }
 
@@ -414,8 +423,9 @@ public abstract class TMG {
     if (args.length > 0) {
       double lat = Double.valueOf(args[0]);
       double lng = Double.valueOf(args[1]);
-      System.out.printf("lat=%s, lng=%s, key=%s\n", lat, lng, getTMGKey(lat,
-          lng));
+      System.out.printf("lat=%s, lng=%s, key=%s clat=%s clng=%s", lat, lng,
+          getTMGKey(lat, lng), canonicalLatitude(lat, lng), canonicalLongitude(
+              lat, lng));
       return;
     }
     // System.out.println("phi: " + phi + "\nvertexangle: " + vertexangle
@@ -429,11 +439,11 @@ public abstract class TMG {
     double testlat = 0;
     double testlng = 0;
     // int xcellcount = 360 * 120;
-    int xcellcount = 1;
-    int ycellcount = 180 * 120;
-    for (int j = 0; j < xcellcount; j++) {
+    int xcellcount = 6;
+    int ycellcount = 10;
+    for (int j = 0; j <= xcellcount; j++) {
       testlng = -180 + j * 360 / xcellcount;
-      for (int i = 0; i < ycellcount; i++) {
+      for (int i = 0; i <= ycellcount; i++) {
         testlat = -90 + i * 180 / ycellcount;
         System.out.println("key: " + getTMGKey(testlat, testlng) + " lat: "
             + testlat + " lng: " + testlng);
