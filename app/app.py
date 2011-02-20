@@ -119,22 +119,7 @@ def _getprops(obj):
     dict['key'] = obj.key().name()
     return dict
 
-
-# ==============================================================================
-# Request handlers
-
-class BaseHandler(webapp.RequestHandler):
-    """Base handler for common functions like template rendering."""
-    def render_template(self, file, template_args):
-        path = os.path.join(os.path.dirname(__file__), "html", file)
-        self.response.out.write(template.render(path, template_args))
-
-class MeshHandler(BaseHandler):
-    def get(self, cell_count):
-        self.render_template("meshmap.html", {})
-        
-class KmlHandler(BaseHandler):
-    PLACEMARK = u"""                                                                                                                                          
+PLACEMARK = u"""                                                                                                                                          
     <Placemark>                                                                                                                                               
         <name>Cell</name>                                                                                                                              
         <visibility>1</visibility>                                                                                                                            
@@ -155,7 +140,7 @@ class KmlHandler(BaseHandler):
         </Polygon>                                                                                                                                            
     </Placemark>"""
     
-    KML = u'''<?xml version="1.0" encoding="UTF-8"?>                                                                                                          
+KML = u'''<?xml version="1.0" encoding="UTF-8"?>                                                                                                          
 <kml xmlns="http://www.opengis.net/kml/2.2">                                                                                                                  
     <Document>                                                                                                                                                
         <name>KmlFile</name>                                                                                                                                  
@@ -177,20 +162,45 @@ class KmlHandler(BaseHandler):
     </Document>                                                                                                                                               
 </kml>'''
 
+def createKmlMesh(cell_count):
+    placemarks = []
+    for n in range(10):
+        for x in range(cell_count):
+            for y in range(cell_count):
+                polygon = tmg.Cell.polygon(n, x, y, cell_count)                    
+                points = tuple(['%s,%s' % (c[0], c[1]) for c in polygon])
+                key = '%s-%s-%s' % (n, x, y)
+                data = (key, key) + points
+                p = PLACEMARK % data
+                placemarks.append(p)
+    return KML % ' '.join(placemarks)
+
+# ==============================================================================
+# Request handlers
+
+class BaseHandler(webapp.RequestHandler):
+    """Base handler for common functions like template rendering."""
+    def render_template(self, file, template_args):
+        path = os.path.join(os.path.dirname(__file__), "html", file)
+        self.response.out.write(template.render(path, template_args))
+
+class MeshHandler(BaseHandler):
+    def get(self, cell_count):
+        logging.info(str(os.environ))
+        if self.request.get('format', None) == 'text':
+            self.response.out.write(createKmlMesh(int(cell_count)))
+        else:
+            self.render_template("meshmap.html", {})
+        
+class KmlHandler(BaseHandler):
     def get(self, cell_count):
         cell_count = int(cell_count)
-        placemarks = []
-        for n in range(10):
-            for x in range(cell_count):
-                for y in range(cell_count):
-                    polygon = tmg.Cell.polygon(n, x, y, cell_count)                    
-                    points = tuple(['%s,%s' % (c[0], c[1]) for c in polygon])
-                    key = '%s-%s-%s' % (n, x, y)
-                    data = (key, key) + points
-                    p = KmlHandler.PLACEMARK % data
-                    placemarks.append(p)
-        self.response.headers['Content-Type'] = 'application/vnd.google-earth.kml+xml'
-        self.response.out.write(KmlHandler.KML % ' '.join(placemarks))
+        kml = createKmlMesh(cell_count)
+        if self.request.get('format', None) == 'text':
+            self.response.out.write(kml)
+        else:
+            self.response.headers['Content-Type'] = 'application/vnd.google-earth.kml+xml'
+            self.response.out.write(kml)
 
 class CellHandler(BaseHandler):    
     def get(self, n, x, y):
