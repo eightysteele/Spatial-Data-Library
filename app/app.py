@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 from datetime import datetime
-from google.appengine.api import mail, memcache as m, urlfetch
+from google.appengine.api import mail, memcache as m
 from google.appengine.ext import webapp, db
 from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
@@ -23,7 +23,6 @@ from sdl import tmg
 import logging
 import os
 import simplejson
-import urllib2
 
 memcache = m.Client()
 
@@ -186,21 +185,26 @@ class BaseHandler(webapp.RequestHandler):
 
 class MeshHandler(BaseHandler):
     def get(self, cell_count):
-        logging.info(str(os.environ))
         if self.request.get('format', None) == 'text':
-            self.response.out.write(createKmlMesh(int(cell_count)))
+            memcache_key = 'mesh-%s' % cell_count
+            kml = memcache.get(memcache_key)
+            if not kml:
+                kml = createKmlMesh(cell_count)
+                memcache.set(memcache_key, kml)
+            self.response.out.write(kml)
         else:
             self.render_template("meshmap.html", {})
         
 class KmlHandler(BaseHandler):
     def get(self, cell_count):
         cell_count = int(cell_count)
-        kml = createKmlMesh(cell_count)
-        if self.request.get('format', None) == 'text':
-            self.response.out.write(kml)
-        else:
-            self.response.headers['Content-Type'] = 'application/vnd.google-earth.kml+xml'
-            self.response.out.write(kml)
+        memcache_key = 'mesh-%s' % cell_count
+        kml = memcache.get(memcache_key)
+        if not kml:
+            kml = createKmlMesh(cell_count)
+            memcache.set(memcache_key, kml)
+        self.response.headers['Content-Type'] = 'application/vnd.google-earth.kml+xml'
+        self.response.out.write(kml)
 
 class CellHandler(BaseHandler):    
     def get(self, n, x, y):
