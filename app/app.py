@@ -185,16 +185,19 @@ class BaseHandler(webapp.RequestHandler):
 
 class MeshHandler(BaseHandler):
     def get(self, cell_count):
-        if self.request.get('format', None) == 'text':
+        format = self.request.get('format', None)
+        if format == 'text':
             memcache_key = 'mesh-%s' % cell_count
             kml = memcache.get(memcache_key)
             if not kml:
                 kml = createKmlMesh(cell_count)
                 memcache.set(memcache_key, kml)
             self.response.out.write(kml)
+        elif format == 'earth':
+            self.render_template("meshearth.html", {})
         else:
             self.render_template("meshmap.html", {})
-        
+            
 class KmlHandler(BaseHandler):
     def get(self, cell_count):
         cell_count = int(cell_count)
@@ -315,3 +318,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+        

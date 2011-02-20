@@ -1,0 +1,45 @@
+<!DOCTYPE html> 
+<html> 
+<head> 
+   <title>TGM Mesh Prototype</title> 
+   <link href="http://code.google.com/apis/maps/documentation/javascript/examples/default.css" rel="stylesheet" type="text/css" /> 
+
+   <script src="http://maps.google.com/maps?file=api&v=2&sensor=false&key=ABQIAAAAQmTfPsuZgXDEr012HM6trBRja7b9WKwap6EFAmWlXFLylqduUhTSHCEBUrwt0VOA4-WmCzaOpOJamQ" type="text/javascript"></script>
+
+   <script src="//www.google.com/jsapi?key=ABQIAAAAQmTfPsuZgXDEr012HM6trBRja7b9WKwap6EFAmWlXFLylqduUhTSHCEBUrwt0VOA4-WmCzaOpOJamQ"></script> 
+
+   <script type="text/javascript"> 
+      var ge;
+      google.load("earth", "1");
+ 
+      function init() {
+         google.earth.createInstance('map3d', initCB, failureCB);
+      }
+ 
+      function initCB(instance) {
+         ge = instance;
+         ge.getWindow().setVisibility(true);
+         ge.getOptions().setStatusBarVisibility(true);
+         ge.getNavigationControl().setVisibility(ge.VISIBILITY_SHOW);         
+         var link = ge.createLink('');
+         var pathArray = window.location.pathname.split( '/' );
+         var cellCount = pathArray[3]; 
+         var href = 'http://dev.geo-ds.appspot.com/cells/mesh/kml/'+ cellCount;
+         link.setHref(href);
+         var networkLink = ge.createNetworkLink('');
+         networkLink.set(link, true, true); // Sets the link, refreshVisibility, and flyToView. 
+         ge.getFeatures().appendChild(networkLink);
+      }
+ 
+      function failureCB(errorCode) {
+          alert(errorCode);
+      }
+ 
+      google.setOnLoadCallback(init);
+   </script> 
+ 
+</head> 
+<body> 
+   <div id="map3d" style="height:100%; width:100%;"></div>  
+</body> 
+</html> 
