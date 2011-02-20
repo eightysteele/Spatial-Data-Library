@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 from datetime import datetime
-from google.appengine.api import mail, memcache as m
+from google.appengine.api import mail, memcache as m, urlfetch
 from google.appengine.ext import webapp, db
 from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
@@ -23,6 +23,7 @@ from sdl import tmg
 import logging
 import os
 import simplejson
+import urllib2
 
 memcache = m.Client()
 
@@ -125,29 +126,73 @@ def _getprops(obj):
 class BaseHandler(webapp.RequestHandler):
     """Base handler for common functions like template rendering."""
     def render_template(self, file, template_args):
-        path = os.path.join(os.path.dirname(__file__), "templates", file)
+        path = os.path.join(os.path.dirname(__file__), "html", file)
         self.response.out.write(template.render(path, template_args))
 
-class CellHandler(BaseHandler):
-    KML = u'''<?xml version="1.0" encoding="utf-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Placemark>
-    <name>Tessellated</name>
-    <visibility>1</visibility>
-    <description></description>
-    <LinearRing>
-      <tessellate>1</tessellate>
-      <coordinates>
-        %s,0
-        %s,0,
-        %s,0,
-        %s,0,
-        %s,0
-      </coordinates>
-    </LinearRing>
-  </Placemark>
+class MeshHandler(BaseHandler):
+    def get(self, cell_count):
+        self.render_template("meshmap.html", {})
+        
+class KmlHandler(BaseHandler):
+    PLACEMARK = u"""                                                                                                                                          
+    <Placemark>                                                                                                                                               
+        <name>Cell</name>                                                                                                                              
+        <visibility>1</visibility>                                                                                                                            
+        <styleUrl>#transGreenPoly</styleUrl>                                                                                                                  
+        <description><![CDATA[%s]]></description>                                                                                                             
+        <Polygon id="%s">                                                                                                                                     
+            <outerBoundaryIs>                                                                                                                                 
+                <LinearRing>                                                                                                                                  
+                    <coordinates>                                                                                                                             
+                        %s,1                                                                                                                                  
+                        %s,1                                                                                                                                  
+                        %s,1                                                                                                                                  
+                        %s,1                                                                                                                                  
+                        %s,1                                                                                                                                  
+                    </coordinates>                                                                                                                            
+                </LinearRing>                                                                                                                                 
+            </outerBoundaryIs>                                                                                                                                
+        </Polygon>                                                                                                                                            
+    </Placemark>"""
+    
+    KML = u'''<?xml version="1.0" encoding="UTF-8"?>                                                                                                          
+<kml xmlns="http://www.opengis.net/kml/2.2">                                                                                                                  
+    <Document>                                                                                                                                                
+        <name>KmlFile</name>                                                                                                                                  
+        <Style id="transGreenPoly">                                                                                                                           
+            <LineStyle>                                                                                                                                       
+                <width>1.5</width>                                                                                                                            
+                <color>11111111</color>                                                                                                                       
+            </LineStyle>                                                                                                                                      
+            <PolyStyle>                                                                                                                                       
+                <color>7d00ff00</color>                                                                                                                       
+            </PolyStyle>                                                                                                                                      
+        </Style>                                                                                                                                              
+        <Folder>                                                                                                                                              
+            <name>Triangular Mesh Grid</name>                                                                                                                 
+            <visibility>1</visibility>                                                                                                                        
+            <description>Global triangular mesh grid coverage.</description>                                                                                  
+            %s                                                                                                                                                
+        </Folder>                                                                                                                                             
+    </Document>                                                                                                                                               
 </kml>'''
 
+    def get(self, cell_count):
+        cell_count = int(cell_count)
+        placemarks = []
+        for n in range(10):
+            for x in range(cell_count):
+                for y in range(cell_count):
+                    polygon = tmg.Cell.polygon(n, x, y, cell_count)                    
+                    points = tuple(['%s,%s' % (c[0], c[1]) for c in polygon])
+                    key = '%s-%s-%s' % (n, x, y)
+                    data = (key, key) + points
+                    p = KmlHandler.PLACEMARK % data
+                    placemarks.append(p)
+        self.response.headers['Content-Type'] = 'application/vnd.google-earth.kml+xml'
+        self.response.out.write(KmlHandler.KML % ' '.join(placemarks))
+
+class CellHandler(BaseHandler):    
     def get(self, n, x, y):
         try:
             cell_count = self.request.get('cc', None)
@@ -158,14 +203,8 @@ class CellHandler(BaseHandler):
             logging.error(str(e))
             self.error(404)
             return
-        if self.request.get('output', None) == 'kml':            
-            data = tuple(['%s, %s' % (c[0], c[1]) for c in polygon])
-            kml = CellHandler.KML % data
-            self.response.headers['Content-Type'] = 'application/vnd.google-earth.kml+xml'
-            self.response.out.write(kml)
-        else:
-            self.response.headers['Content-Type'] = 'application/json'
-            self.response.out.write(simplejson.dumps(polygon))
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(simplejson.dumps(polygon))
                                 
 class GitHubPostReceiveHooksHandler(BaseHandler):    
     def post(self):
@@ -252,6 +291,8 @@ application = webapp.WSGIApplication(
          ('/data/([\w]*)', DataHandler),
          ('/data', DataListHandler),
          ('/cells/([\d]+)/([\d]+)/([\d]+)', CellHandler),
+         ('/cells/mesh/([\d]+)', MeshHandler),
+         ('/cells/mesh/kml/([\d]+)', KmlHandler),
          ('/github/post-commit-hook', GitHubPostReceiveHooksHandler),
          ], debug=True)
 
