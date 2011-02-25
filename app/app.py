@@ -303,6 +303,13 @@ class ApiHandler(BaseHandler):
         cell = db.get(index.parent())
         self.response.out.write(cell.__getattribute__(variable))
 
+class AdminFlushMemcacheHandler(BaseHandler):
+    def get(self):
+        if not memcache.flush_all():
+            self.response.out.write('Memcache failed to flush')
+        else:
+            self.response.out.write('Memcache flushed')
+
 application = webapp.WSGIApplication(
         [('/data/api', ApiHandler),
          ('/data/([\w]*)', DataHandler),
@@ -310,6 +317,7 @@ application = webapp.WSGIApplication(
          ('/cells/([\d]+)/([\d]+)/([\d]+)', CellHandler),
          ('/cells/mesh/([\d]+)', MeshHandler),
          ('/cells/mesh/kml/([\d]+)', KmlHandler),
+         ('/admin/flush-memcache', AdminFlushMemcacheHandler),
          ('/github/post-commit-hook', GitHubPostReceiveHooksHandler),
          ], debug=True)
 
