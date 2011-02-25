@@ -120,24 +120,24 @@ def _getprops(obj):
 
 PLACEMARK = u"""                                                                                                                                          
     <Placemark>                                                                                                                                               
-        <name>Cell</name>                                                                                                                              
+        <name>Cellz</name>                                                                                                                              
         <visibility>1</visibility>                                                                                                                            
         <styleUrl>#transGreenPoly</styleUrl>                                                                                                                  
-        <description><![CDATA[%s]]></description>                                                                                                             
-        <Polygon id="%s">                                                                                                                                     
-            <outerBoundaryIs>                                                                                                                                 
-                <LinearRing>                                                                                                                                  
-                    <coordinates>                                                                                                                             
-                        %s,1                                                                                                                                  
-                        %s,1                                                                                                                                  
-                        %s,1                                                                                                                                  
-                        %s,1                                                                                                                                  
-                        %s,1                                                                                                                                  
+        <description><![CDATA[%s]]></description>
+                        %s                                                                                                                                  
+                        %s                                                                                                                                  
+                        %s                                                                                                                                  
+                        %s                                                                                                                                  
                     </coordinates>                                                                                                                            
                 </LinearRing>                                                                                                                                 
             </outerBoundaryIs>                                                                                                                                
         </Polygon>                                                                                                                                            
     </Placemark>"""
+#                        %s,1                                                                                                                                  
+#                        %s,1                                                                                                                                  
+#                        %s,1                                                                                                                                  
+#                        %s,1                                                                                                                                  
+#                        %s,1                                                                                                                                  
     
 KML = u'''<?xml version="1.0" encoding="UTF-8"?>                                                                                                          
 <kml xmlns="http://www.opengis.net/kml/2.2">                                                                                                                  
@@ -167,9 +167,11 @@ def createKmlMesh(cell_count):
         for x in range(cell_count):
             for y in range(cell_count):
                 polygon = tmg.Cell.polygon(n, x, y, cell_count)                    
+#                points = tuple(['%s,%s' % (c[0], c[1]) for c in polygon])
                 points = tuple(['%s,%s' % (c[0], c[1]) for c in polygon])
                 key = '%s-%s-%s' % (n, x, y)
-                data = (key, key) + points
+#                data = (key, key) + points
+                data = (points, points) + points
                 p = PLACEMARK % data
                 placemarks.append(p)
     return KML % ' '.join(placemarks)
