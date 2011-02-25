@@ -18,6 +18,10 @@ handlers:
 - url: /cells/.*
   script: app.py
 
+- url: /admin/.*
+  script: app.py
+  login: admin
+
 - url: /data
   script: app.py
   login: admin
