@@ -105,13 +105,13 @@ def _getprops(obj):
     dict = {}
     for key in obj.properties().keys():
         val = obj.properties()[key].__get__(obj, CellIndex)
-        if type(val) is datetime.datetime:
+        if type(val) is datetime:
             dict[key] = str(val)
         else:
             dict[key] = val
     for key in obj.dynamic_properties():
         val = obj.__getattribute__(key)
-        if type(val) is datetime.datetime:
+        if type(val) is datetime:
             dict[key] = str(val)
         else:
             dict[key] = val
@@ -209,19 +209,29 @@ class KmlHandler(BaseHandler):
         self.response.headers['Content-Type'] = 'application/vnd.google-earth.kml+xml'
         self.response.out.write(kml)
 
-class CellHandler(BaseHandler):    
+class CellLookupByKey(BaseHandler):    
     def get(self, n, x, y):
-        try:
-            cell_count = self.request.get('cc', None)
-            if cell_count is not None:
-                cell_count = int(cell_count)
-            polygon = tmg.Cell.polygon(int(n), int(x), int(y), cell_count)
-        except (Exception), e:
-            logging.error(str(e))
-            self.error(404)
+        key_name = '%s-%s-%s' % (n, x, y)
+        logging.info(key_name)
+        cell = Cell.get_by_key_name(key_name)
+        if not cell:
+            self.error(404) # Not found
             return
         self.response.headers['Content-Type'] = 'application/json'
-        self.response.out.write(simplejson.dumps(polygon))
+        self.response.out.write(cell.bio1)
+        
+        # try:
+        #     n, x, y = key.split('-')
+        #     cell_count = self.request.get('cc', None)
+        #     if cell_count is not None:
+        #         cell_count = int(cell_count)
+        #     polygon = tmg.Cell.polygon(int(n), int(x), int(y), cell_count)
+        # except (Exception), e:
+        #     logging.error(str(e))
+        #     self.error(404)
+        #     return
+        # self.response.headers['Content-Type'] = 'application/json'
+        # self.response.out.write(simplejson.dumps(polygon))
                                 
 class GitHubPostReceiveHooksHandler(BaseHandler):    
     def post(self):
@@ -240,12 +250,12 @@ class GitHubPostReceiveHooksHandler(BaseHandler):
               subject=title,
               body=body)        
         
-class DataListHandler(BaseHandler):
+class VariableList(BaseHandler):
     '''Lists all Variable entities as JSON.'''
     def get(self):
         self.response.out.write(simplejson.dumps([{_getprops(x)['key']: _getprops(x)} for x in Variable.all()]))
 
-class DataHandler(BaseHandler):
+class VariableLookupByKey(BaseHandler):
     '''Lists metadata for a single Variable entity as JSON.'''
     def get(self, variable):
         entity = Variable.get_by_key_name(variable)
@@ -255,53 +265,65 @@ class DataHandler(BaseHandler):
         self.response.out.write(simplejson.dumps(_getprops(entity)))
 
 
-class ApiHandler(BaseHandler):
+class CellLookup(BaseHandler):
     """API handler."""
     
     def searchLatLng(self, ll):
         '''Searches for Cell associated with lat/lng and returns Cell.json.'''
-        cell = memcache.get(ll)
-        if cell:
-            self.response.out.write(cell.bio1)
-            return;
+        
+        # TODO: Determine efficient memcache strategy.
+
         try:
-            lat, lng = ll.replace(' ', '').split(',')
-            key = tmg.Rhomboid(float(lat), float(lng)).key
+            coords = [x.replace(' ', '').split(',') for x in ll.split('|')]
+            keys = [tmg.Rhomboid(float(c[0]), float(c[1])).key for c in coords]
         except (Exception), e:
             logging.error(str(e))
-            self.error(400)
+            self.error(400) # Bad request
             return
-        cell = Cell.get_by_key_name(key)
-        logging.info('key=%s, cell=%s' % (key, cell))
-        if not cell:
-            self.error(404)
+        cells = Cell.get_by_key_name(keys)
+        if cells[0] is None:
+            self.error(404) # Not found
             return
-        memcache.add(ll, cell)
-        self.response.out.write(cell.bio1)
-    
+        results = simplejson.dumps([simplejson.loads(c.bio1) for c in cells])
+        self.response.out.write(results)
+
     def get(self):
         self.post()
              
     def post(self):
+        # Handles cell lookup by coordinate(s):
         ll = self.request.get('ll', None)
         if ll:
             self.searchLatLng(ll)
             return
         
+        # Handler cell lookup by variable value(s):
         within = self.request.get('within', None)
+        within_filter = 'within_%s =' % within
         variable = self.request.get('variable', None)
         value = int(self.request.get('pivot', None))
-
-        within_filter = 'within_%s =' % within
+        limit = int(self.request.get('limit', 10))
+        offset = int(self.request.get('offset', 0))
+        
+        memcache_key = '%s-%s-%s-%s-%s' % (within_filter, variable, value, limit, 
+                                           offset)
+                                           
+        results = memcache.get(memcache_key)
+        if results:
+            self.response.out.write(results)
+            return
 
         query = db.Query(CellIndex, keys_only=True)
         query.filter('variable =', variable).filter(within_filter, value)
-        index = query.get()
-        if not index:
-            self.error(404)
+        indexes = query.fetch(limit, offset)
+        if not indexes:
+            self.error(404) # Not found.
             return
-        cell = db.get(index.parent())
-        self.response.out.write(cell.__getattribute__(variable))
+        parents = [x.parent() for x in indexes]
+        cells = db.get(parents)
+        results = simplejson.dumps([simplejson.loads(cell.__getattribute__(variable)) for cell in cells])
+        memcache.add(memcache_key, results)
+        self.response.out.write(results)
 
 class AdminFlushMemcacheHandler(BaseHandler):
     def get(self):
@@ -311,12 +333,15 @@ class AdminFlushMemcacheHandler(BaseHandler):
             self.response.out.write('Memcache flushed')
 
 application = webapp.WSGIApplication(
-        [('/data/api', ApiHandler),
-         ('/data/([\w]*)', DataHandler),
-         ('/data', DataListHandler),
-         ('/cells/([\d]+)/([\d]+)/([\d]+)', CellHandler),
+        [('/api/cells', CellLookup),
+         ('/api/cells/([\d]+)-([\d]+)-([\d]+)', CellLookupByKey),
+         ('/api/variables', VariableList),
+         ('/api/variables/([\w]*)', VariableLookupByKey),
+
+
          ('/cells/mesh/([\d]+)', MeshHandler),
          ('/cells/mesh/kml/([\d]+)', KmlHandler),
+
          ('/admin/flush-memcache', AdminFlushMemcacheHandler),
          ('/github/post-commit-hook', GitHubPostReceiveHooksHandler),
          ], debug=True)
