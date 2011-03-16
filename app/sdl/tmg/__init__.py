@@ -17,46 +17,278 @@
 import logging
 import math
 
-VERTEX_LAT = 26.565051177077997
-CELL_COUNT = 4
-PHI = 1.618033988749895
-RADIANS = 0.017453292519943295
+'''Set CELL_COUNT to the number of cells on each side of the rhomboid.'''
+CELL_COUNT = 3.0
+
+'''
+DEGREE_DIGITS is the number of significant digits to the right of the decimal
+to use in latitude and longitude equality determination and representation. This 
+should be set to 7 to preserve reversible transformations between coordinate systems 
+down to a resolution of roughly 1 m.
+''' 
+DEGREE_DIGITS = 7
+
+'''
+SEMI_MAJOR_AXIS is the radius of the sphere at the equator for the WGS84 datum. 
+Cell construction and lookup are based on projection of the geographic coordinates 
+onto a sphere of this radius. As a result, edge lengths and areas of cells projected
+onto the WGS84 ellipsoid will vary slightly by latitude.
+'''
 SEMI_MAJOR_AXIS = 6378137.0
-VERTEX_ANGLE = 63.434948822922
+
+'''
+EDGE_LENGTH is the length of the edge of any face of the icosahedron inscribed on the 
+sphere whose radius is SEMI_MAJOR_AXIS.
+'''
 EDGE_LENGTH = 6706370.116516389
+
+'''
+MID_EDGE_RADIUS is the distance from the center of the sphere to the midpoint of any
+edge of any face of the icosahedron inscribed on the sphere whose radius is SEMI_MAJOR_AXIS.
+'''
 MID_EDGE_RADIUS = 5425567.394830056
-FACE_CENTER_LAT = 52.622631859350314
-CENTER_ANGLE = 41.810314895778575
+
+'''
+SURFACE_DISTANCE_BETWEEN_VERTEXES is the great circle distance between any two 
+adjacent rhomboid vertexes on the sphere whose radius is SEMI_MAJOR_AXIS.
+'''
+SURFACE_DISTANCE_BETWEEN_VERTEXES = 7061546.20147
+# SURFACE_DISTANCE_BETWEEN_VERTEXES = VERTEX_ANGLE*(2 * math.pi * SEMI_MAJOR_AXIS) / 360.0
+
+'''
+CELL_SIDE_LENGTH is the great circle distance between any two 
+adjacent cell vertexes on the sphere whose radius is SEMI_MAJOR_AXIS.
+'''
+CELL_SIDE_LENGTH = SURFACE_DISTANCE_BETWEEN_VERTEXES / CELL_COUNT 
+
+'''
+RADIANS is constant representing the number by which to multiply a value in degrees
+to get the equivalent value in radians.
+'''
+RADIANS = 0.017453292519943295
+
+'''
+PHI = (1+SQRT(5))/2 - the golden ratio. The vertices of an icosahedron of side length 
+2 can be placed at the coordinates: 
+(0, +-1, +-PHI)
+(+-1, +-PHI, 0)
+(+-PHI, 0, +-1)
+'''
+PHI = 1.618033988749895
+
+'''
+VERTEX_LAT is the latitude in degrees north or south of the equator for all
+vertexes that are not at one of the poles.
+'''
+VERTEX_LAT = 26.565051177077997
+
+'''
+VERTEX_ANGLE is the angle in degrees from the center of the sphere between any two
+adjacent vertexes.
+''' 
+VERTEX_ANGLE = 63.434948822922
+
+#FACE_CENTER_LAT = 52.622631859350314
+#CENTER_ANGLE = 41.810314895778575
+
+# Precalculated useful sines and cosines.
 COS_72 = 0.30901699437494734
 SIN_72 = -0.9510565162951536
 COS_VERTEX_LAT = 0.8944271909999159
 SIN_VERTEX_LAT = -0.4472135954999581
 
-def lng180(lng):
-    '''Returns a longitude in {-180, 180].'''
-    if lng <= -180:
-        return lng + 360
-    if lng > 180:
-        return lng - 360
-    return lng
-   
-def lng360(lng):
-    '''Returns a longitude in [0, 360}.'''
-    if lng < 0:
-        return lng + 360
-    if lng > 360:
-        return lng - 360
-    return lng
+PLACEMARK_1 = u"""                                                                                                                                          
+    <Placemark>                                                                                                                                               
+        <name>Cell</name>                                                                                                                              
+        <visibility>1</visibility>                                                                                                                            
+        <styleUrl>#transGreenPoly</styleUrl>                                                                                                                  
+        <description><![CDATA[%s %s]]></description>                                                                                                             
+        <Polygon id="%s">                                                                                                                                     
+            <outerBoundaryIs>                                                                                                                                 
+                <LinearRing>                                                                                                                                  
+                    <coordinates>
+"""                                                                                                                             
+PLACEMARK_2 = u"""
+                    </coordinates>                                                                                                                            
+                </LinearRing>                                                                                                                                 
+            </outerBoundaryIs>                                                                                                                                
+        </Polygon>                                                                                                                                            
+    </Placemark>"""
+    
+KML = u'''<?xml version="1.0" encoding="UTF-8"?>                                                                                                          
+<kml xmlns="http://www.opengis.net/kml/2.2">                                                                                                                  
+    <Document>                                                                                                                                                
+        <name>KmlFile</name>                                                                                                                                  
+        <Style id="transGreenPoly">                                                                                                                           
+            <LineStyle>                                                                                                                                       
+                <width>1.5</width>                                                                                                                            
+                <color>11111111</color>                                                                                                                       
+            </LineStyle>                                                                                                                                      
+            <PolyStyle>                                                                                                                                       
+                <color>7d00ff00</color>                                                                                                                       
+            </PolyStyle>                                                                                                                                      
+        </Style>                                                                                                                                              
+        <Folder>                                                                                                                                              
+            <name>Triangular Mesh Grid</name>                                                                                                                 
+            <visibility>1</visibility>                                                                                                                        
+            <description>Global triangular mesh grid coverage.</description>                                                                                  
+            %s                                                                                                                                                
+        </Folder>                                                                                                                                             
+    </Document>                                                                                                                                               
+</kml>'''
+
+FORMAT = """.%sf"""
+
+def flip(p):
+    '''Swap latitude and longitude order in the tuple. KML requires longitude first.'''
+    return (p[1], p[0])
 
 def sqr(x):
+    '''Square of x.'''
     return x * x
 
+def signum(x):
+    '''Sign of x.'''
+    if x > 0:
+        return 1.0
+    if x < 0:
+        return -1.0
+    return 0
+
+def truncate_lat_lng(p):
+    '''Set the precision of a lat long in degrees to DEGREE_DIGITS.'''    
+    return (truncate(p[0],DEGREE_DIGITS),truncate(p[1],DEGREE_DIGITS))
+
+def truncate(x, digits):
+    '''Set the representational precision of x to digits places to the right of the decimal.'''
+    format_x = FORMAT % digits
+    return format(x,format_x)
+
+def equal_within_tolerance(a, b, digits):
+    '''Determine if two floats are equal within the accuracy given by digits places to the right of the decimal.'''
+    if math.fabs(a-b) <= math.pow(10,-digits):
+        return True
+    return False
+
+def equal_lat_lng(p0, p1):
+    '''Determine if two degree lat longs are the same within the tolerance given by digits places to the right of the decimal.'''
+    return (equal_within_tolerance(p0[0], p1[0], DEGREE_DIGITS) and equal_within_tolerance(p0[1], p1[1], DEGREE_DIGITS)) 
+
+def lng180(lng):
+    '''Given a longitude in degrees, returns a longitude in degrees between {-180, 180].'''
+    newlng=lng
+    if lng <= -180:
+        newlng = lng + 360
+    elif lng > 180:
+        newlng = lng - 360
+    return float(truncate(newlng, DEGREE_DIGITS))
+
+def lng360(lng):
+    '''Given a longitude in degrees, returns a longitude in degrees between [0, 360}.'''
+    if lng < 0:
+        return float(truncate(lng + 360, DEGREE_DIGITS))
+    if lng > 360:
+        return float(truncate(lng - 360, DEGREE_DIGITS))
+    return float(truncate(lng, DEGREE_DIGITS))
+
+def xyz_from_lat_lng((lat, lng)):
+    '''Returns the Cartesian coordinates of a lat long on a unit sphere.'''
+    x = math.cos(lat * RADIANS) * math.cos(lng * RADIANS)
+    y = math.cos(lat * RADIANS) * math.sin(lng * RADIANS)
+    z = math.sin(lat * RADIANS)
+    return (x, y, z)
+
+def lat_lng_from_xyz((x, y, z)):
+    '''Returns the lat long (in degrees) of Cartesian coordinates on a unit sphere.'''
+    R=math.sqrt(x*x+y*y+z*z)
+    znorm = z/R
+    ynorm = y/R
+    xnorm = x/R
+    lng = math.atan2(ynorm,xnorm) / RADIANS
+    lat = math.asin(znorm) / RADIANS
+    return (lat, lng)
+
+def great_circle_distance(start_lat_lng, end_lat_lng):
+    '''
+    Returns the distance along a great circle between two lat longs on the surface of a
+    sphere of radius SEMI_MAJOR_AXIS.
+    '''
+    dLat = (end_lat_lng[0]-start_lat_lng[0]) * RADIANS
+    dLon = (end_lat_lng[1]-start_lat_lng[1]) * RADIANS 
+    a = math.sin(dLat/2) * math.sin(dLat/2) + math.cos(start_lat_lng[0] * RADIANS) * math.cos(end_lat_lng[0] * RADIANS) * math.sin(dLon/2) * math.sin(dLon/2) 
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return SEMI_MAJOR_AXIS * c 
+
+def great_circle_intersection_xyz(p0, p1, p2, p3):
+    '''
+    Returns one of the two points on the sphere where two great circles, each defined by two Cartesian points,
+    intersect. Result should be checked against expectation for hemisphere, and if not correct, take the 
+    antipode.
+    '''
+    r = SEMI_MAJOR_AXIS
+    x0 = p0[0]
+    y0 = p0[1]
+    z0 = p0[2]
+    x1 = p1[0]
+    y1 = p1[1]
+    z1 = p1[2]
+    x2 = p2[0]
+    y2 = p2[1]
+    z2 = p2[2]
+    x3 = p3[0]
+    y3 = p3[1]
+    z3 = p3[2]
+    a = (y0*z1 - y1*z0)
+    b = -(x0*z1 - x1*z0)
+    c = (x0*y1 - x1*y0)
+    d = (y2*z3 - y3*z2)
+    e = -(x2*z3 - x3*z2)
+    f =  (x2*y3 - x3*y2)
+    h = (d*c-f*a)/(e*a-d*b)
+    g = ((-b*h - c)/a)
+    k = math.sqrt(r*r/(g*g + h*h + 1))
+    lat = math.asin(k/r)
+    lng = math.atan2(h*k,g*k)
+    return (float(truncate(lat/RADIANS, DEGREE_DIGITS)),float(truncate(lng/RADIANS, DEGREE_DIGITS)))
+
+def great_circle_intersection_lat_lngs(p0, p1, p2, p3):
+    '''
+    Returns the lat long of the point within the same hemisphere where two great circles, defined by 
+    two lat longs each, intersect.
+    '''
+    if p0[0] == -90.0:
+        corrected_p0 = p1
+        corrected_p1 = p0
+    else:
+        corrected_p0 = p0
+        corrected_p1 = p1
+    p = great_circle_intersection_xyz(xyz_from_lat_lng(corrected_p0), xyz_from_lat_lng(corrected_p1), xyz_from_lat_lng(p2), xyz_from_lat_lng(p3))
+    corrected_lat = p[0]
+    corrected_lng = p[1]
+    # If the calculated intersection is in the opposite hemisphere, return the antipode instead 
+    if great_circle_distance(p,p0) > math.pi*SEMI_MAJOR_AXIS/2:
+        corrected_lng = lng180(p[1] + 180)
+        if p[0] != 90.0:
+            corrected_lat = -1.0 * p[0] 
+    return (corrected_lat,corrected_lng)
+    
 class Cell(object):
+    '''
+    Cell is the rhomboidal grid cell of a Triangular Mesh Grid over a sphere. The cell is 
+    identified by the rhomboid within which it lies and the x and y offset indexes from the 
+    southern vertex.
+    ''' 
+    
     @staticmethod
     def rotate(lat_lng, axis_lat_lng, rotation_angle):
+        '''
+        Return the lat long in degrees of the point determined by right-handed rotating an input
+        point lat_lng through an angle rotation_angle about the axis axis_lat_lng.
+        '''
         x = math.cos(lat_lng[0] * RADIANS) * math.cos(lat_lng[1] * RADIANS)
         y = math.cos(lat_lng[0] * RADIANS) * math.sin(lat_lng[1] * RADIANS)
         z = math.sin(lat_lng[0] * RADIANS)
+
         c1 = math.cos(axis_lat_lng[0] * RADIANS) * math.cos(axis_lat_lng[1] * RADIANS)
         c2 = math.cos(axis_lat_lng[0] * RADIANS) * math.sin(axis_lat_lng[1] * RADIANS)
         c3 = math.sin(axis_lat_lng[0] * RADIANS)
@@ -78,30 +310,219 @@ class Cell(object):
         newlat = math.asin(z1) / RADIANS
         newlng = math.atan2(y1, x1) / RADIANS
         return (newlat, newlng)
-
+    
     @staticmethod
     def polygon(rhomboid_num, x_index, y_index, cell_count=None):
-        p0 = Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_south_point(x_index, y_index, cell_count))
-        return [p0,
-                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_east_point(x_index, y_index, cell_count)),
-                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_north_point(x_index, y_index, cell_count)),
-                Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_west_point(x_index, y_index, cell_count)),
-                p0
-                ]
+        '''
+        Return a list of points (lat longs in degrees) for the vertexes of a cell
+        given by the rhomboid index number and x, y offset indexes from the southern vertex of the rhomboid.
+        '''
+        if cell_count == None:
+            cell_count=CELL_COUNT
+        s = Rhomboid.south_lat_lng(rhomboid_num)
+        e = Rhomboid.east_lat_lng(rhomboid_num)
+        w = Rhomboid.west_lat_lng(rhomboid_num)
+        n = Rhomboid.north_lat_lng(rhomboid_num)
+        out = 's=%s e=%s w=%s n=%s' % (s, e, w, n)
+        logging.debug(out)
 
-    @staticmethod
-    def polygonKML(rhomboid_num, x_index, y_index, cell_count=None):
-        p0 = Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_south_point(x_index, y_index, cell_count))
-        p1 = Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_east_point(x_index, y_index, cell_count))
-        p2 = Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_north_point(x_index, y_index, cell_count))
-        p3 = Cell.get_point_from_canonical(rhomboid_num, Cell.get_canonical_west_point(x_index, y_index, cell_count))
-#        out = 'Hey: %s' % ('try this')
+        bearing_we0 = Rhomboid.get_bearing(w,e)
+        distance_we0 = CELL_SIDE_LENGTH*x_index
+        distance_we1 = CELL_SIDE_LENGTH*(x_index+1)
+        we0 = Rhomboid.get_point_from_distance_at_bearing(w, distance_we0, bearing_we0)
+        we1 = Rhomboid.get_point_from_distance_at_bearing(w, distance_we1, bearing_we0)
+        out = 'dist_we0=%s bearing_we0=%s we0=%s' % (distance_we0, bearing_we0, we0)
+        logging.debug(out)
+        out = 'dist_we1=%s bearing_we0=%s we1=%s' % (distance_we1, bearing_we0, we1)
+        logging.debug(out)
+
+        bearing_ew0 = Rhomboid.get_bearing(e,w)
+        distance_ew0 = CELL_SIDE_LENGTH*y_index
+        distance_ew1 = CELL_SIDE_LENGTH*(y_index+1)
+        ew0 = Rhomboid.get_point_from_distance_at_bearing(e, distance_ew0, bearing_ew0)
+        ew1 = Rhomboid.get_point_from_distance_at_bearing(e, distance_ew1, bearing_ew0)
+        out = 'dist_ew0=%s bearing_ew0=%s ew0=%s' % (distance_ew0, bearing_ew0, ew0)
+        logging.debug(out)
+        out = 'dist_ew1=%s bearing_ew0=%s ew1=%s' % (distance_ew1, bearing_ew0, ew1)
+        logging.debug(out)
+
+        bearing_se0 = Rhomboid.get_bearing(s,e)
+        distance_se0 = CELL_SIDE_LENGTH*x_index
+        se0 = Rhomboid.get_point_from_distance_at_bearing(s, distance_se0, bearing_se0)
+        out = 'dist_se0=%s bearing_se0=%s se0=%s' % (distance_se0, bearing_se0, se0)
+        logging.debug(out)
+
+        bearing_sw0 = Rhomboid.get_bearing(s,w)
+        distance_sw0 = CELL_SIDE_LENGTH*y_index
+        if s[0] == -90.0:
+            sw0 = Rhomboid.get_point_from_distance_at_bearing((-90.0,w[1]), distance_sw0, bearing_sw0)
+        else:
+            sw0 = Rhomboid.get_point_from_distance_at_bearing(s, distance_sw0, bearing_sw0)
+        out = 'dist_sw0=%s bearing_sw0=%s sw0=%s' % (distance_sw0, bearing_sw0, sw0)
+        logging.debug(out)
+
+        distance_se1 = CELL_SIDE_LENGTH*(x_index+1)
+        se1 = Rhomboid.get_point_from_distance_at_bearing(s, distance_se1, bearing_se0)
+        out = 'dist_se1=%s bearing_se0=%s se1=%s' % (distance_se1, bearing_se0, se1)
+        logging.debug(out)
+        
+        distance_sw1 = CELL_SIDE_LENGTH*(y_index+1)
+        if s[0] == -90.0:
+            sw1 = Rhomboid.get_point_from_distance_at_bearing((-90.0,w[1]), distance_sw1, bearing_sw0)
+        else:
+            sw1 = Rhomboid.get_point_from_distance_at_bearing(s, distance_sw1, bearing_sw0)
+        out = 'dist_sw1=%s bearing_sw0=%s sw1=%s' % (distance_sw1, bearing_sw0, sw1)
+        logging.debug(out)
+        
+        bearing_en0 = Rhomboid.get_bearing(e,n)
+        distance_en0 = CELL_SIDE_LENGTH*y_index
+        en0 = Rhomboid.get_point_from_distance_at_bearing(e, distance_en0, bearing_en0)
+        out = 'dist_en0=%s bearing_en0=%s en0=%s' % (distance_en0, bearing_en0, en0)
+        logging.debug(out)
+
+        distance_en1 = CELL_SIDE_LENGTH*(y_index+1)
+        en1 = Rhomboid.get_point_from_distance_at_bearing(e, distance_en1, bearing_en0)
+        out = 'dist_en1=%s bearing_en0=%s en1=%s' % (distance_en1, bearing_en0, en1)
+        logging.debug(out)
+        
+        bearing_wn0 = Rhomboid.get_bearing(w,n)
+        distance_wn0 = CELL_SIDE_LENGTH*x_index
+        wn0 = Rhomboid.get_point_from_distance_at_bearing(w, distance_wn0, bearing_wn0)
+        out = 'dist_wn0=%s bearing_wn0=%s wn0=%s' % (distance_wn0, bearing_wn0, wn0)
+        logging.debug(out)
+
+        distance_wn1 = CELL_SIDE_LENGTH*(x_index+1)
+        pre_wn1 = Rhomboid.get_point_from_distance_at_bearing(w, distance_wn1, bearing_wn0)
+        if pre_wn1[0] == 90.0:
+            wn1 = (90.0, wn0[1])
+        else:
+            wn1 = pre_wn1
+        out = 'dist_wn1=%s bearing_wn0=%s wn1=%s' % (distance_wn1, bearing_wn0, wn1)
+        logging.debug(out)
+                
+        if x_index + y_index == 0 and rhomboid_num >= 5:
+            # S vertex on S pole
+            s_vertex = (-90.0,e[1])
+            e_vertex = se1
+            w_vertex = sw1
+            out = '0a) S cell vertex on S pole e_vertex=%s w_vertex=%s' % (e_vertex, w_vertex)
+            logging.debug(out)
+            if x_index + y_index < CELL_COUNT-1:
+                # N cell vertex in or on S triangle also
+                n_vertex = great_circle_intersection_lat_lngs(se1,we1, sw1,ew1)
+                out = '0b) N cell vertex in or on S triangle n_vertex=%s' % (str(n_vertex))
+                logging.debug(out)
+            else:
+                # N cell vertex in N triangle
+                if equal_lat_lng(en1,wn1):
+                    n_vertex = en1
+                else:
+                    n_vertex = great_circle_intersection_lat_lngs(we1,wn1, ew1,en1)
+                out = '0c) N cell vertex in N triangle n_vertex=%s' % (str(n_vertex))
+                logging.debug(out)
+                
+        elif x_index + y_index <= CELL_COUNT:
+            # S cell vertex in or on S triangle
+            if equal_lat_lng(se0,sw0):
+                s_vertex = se0
+                out = '1a) S cell vertex in or on S triangle s_vertex=%s' % (str(s_vertex))
+                logging.debug(out)
+            else:
+                # S cell vertex in N triangle
+                s_vertex = great_circle_intersection_lat_lngs(se0,we0, sw0,ew0)
+                out = '1b) S cell vertex in S triangle s_vertex=%s' % (str(s_vertex))
+                logging.debug(out)
+            if x_index + y_index < CELL_COUNT:
+                # E, W cell vertexes in or on S triangle   
+                if equal_lat_lng(se1,we1):
+                    e_vertex = se1
+                else:
+                    e_vertex = great_circle_intersection_lat_lngs(se1,we1, sw0,ew0)
+                if equal_lat_lng(sw1,we0):
+                    w_vertex = sw1
+                else:
+                    w_vertex = great_circle_intersection_lat_lngs(se0,we0, sw1,ew1)
+                out = '2) E,W cell vertexes in or on S triangle e_vertex=%s w_vertex=%s' % (e_vertex, w_vertex)
+                logging.debug(out)
+            else:
+                e_vertex = great_circle_intersection_lat_lngs(ew0,en0, we1,wn1)
+                w_vertex = great_circle_intersection_lat_lngs(we0,wn0, ew1,en1)
+                out = '3) E,W cell vertexes in N triangle e_vertex=%s w_vertex=%s' % (e_vertex, w_vertex)
+                logging.debug(out)
+            if x_index + y_index < CELL_COUNT-1:
+                # N cell vertex in or on S triangle also
+                n_vertex = great_circle_intersection_lat_lngs(se1,we1, sw1,ew1)
+                out = '4) N cell vertex in or on S triangle also n_vertex=%s' % (str(n_vertex))
+                logging.debug(out)
+            else:
+                # N cell vertex in N triangle
+                if equal_lat_lng(en1,wn1):
+                    n_vertex = en1
+                    out = '5a)'
+                    logging.debug(out)
+                else:
+                    n_vertex = great_circle_intersection_lat_lngs(we1,wn1, ew1,en1)
+                    out = '5d)'
+                    logging.debug(out)
+                out = '5) N cell vertex in N triangle n_vertex=%s' % (str(n_vertex))
+                logging.debug(out)
+        else:
+            # Whole cell in N triangle
+            e_vertex = great_circle_intersection_lat_lngs(ew0,en0, we1,wn1)
+            w_vertex = great_circle_intersection_lat_lngs(we0,wn0, ew1,en1)
+            n_vertex = great_circle_intersection_lat_lngs(we1,wn1, ew1,en1)
+            s_vertex = great_circle_intersection_lat_lngs(ew0,en0, we0,wn0)
+            out = '6) Whole cell in N triangle n_vertex=%s' % (str(n_vertex))
+            logging.debug(out)
+
+        out = 's_vertex=%s n_vertex=%s e_vertex=%s w_vertex=%s' % (s_vertex, n_vertex, e_vertex, w_vertex)
+        logging.debug(out)
+                 
+        if s_vertex[0] == -90:
+            p0 = (s_vertex[0],e_vertex[1])
+            p1 = (s_vertex[0],w_vertex[1])
+#            out = 'S half sv=-90 p0=%s p1=%s' % (p0, p1)
+#            logging.debug(out)
+            return [flip(truncate_lat_lng(p0)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(n_vertex)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(p1))]
+        elif n_vertex[0] == 90:
+            p2 = (90.0,e_vertex[1])
+            p3 = (90.0,w_vertex[1])
+#            out = 'S half nv=+90: p2=%s p3=%s' % (p2, p3)
+#            logging.debug(out)
+            return [flip(truncate_lat_lng(s_vertex)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(p2)), flip(truncate_lat_lng(p3)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(s_vertex))]
+#        out = 'S half sv<>-90 nv<>90 s_vertex=%s' % (str(s_vertex))
 #        logging.debug(out)
-        out = '%s,%s\n%s,%s\n%s,%s\n%s,%s\n%s,%s\n' % (str(p0[0]), str(p0[1]), str(p1[0]), str(p1[1]), str(p2[0]), str(p2[1]), str(p3[0]), str(p3[1]), str(p0[0]), str(p0[1]))
-        return out
+        return [flip(truncate_lat_lng(s_vertex)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(n_vertex)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(s_vertex))]
+        
+    @staticmethod
+    def createPlacemark(key, polygon):
+        '''Render a KML placemark for a polygon.''' 
+        data = (key, polygon, key)
+        placemark = PLACEMARK_1 % data
+        for c in polygon:
+            point = '                        %s,%s,1\n' % (c[0], c[1])
+            placemark = placemark + point
+        placemark = placemark + PLACEMARK_2
+        return placemark
+    
+    @staticmethod
+    def createKmlMesh(cell_count):
+        '''Render a triangular mesh of cells in KML.''' 
+        placemarks = []
+        for n in range(1):
+            for x in range(CELL_COUNT):
+                for y in range(CELL_COUNT):
+                    polygon = Cell.polygon(n, x, y)                                        
+                    key = '%s-%s-%s' % (n, x, y)
+                    p=Cell.createPlacemark(key, polygon)
+                    placemarks.append(p)
+                    out = 'n=%s x=%s y=%s' % (n, x, y)
+                    logging.debug(out)
+        return KML % ' '.join(placemarks)
 
     @staticmethod
     def get_canonical_south_point(x_index, y_index, cell_count=None):
+        # This isn't correct. Rotations depend on the index.
         if not cell_count:
             cell_count = CELL_COUNT
         # Canonical rhomboid 0 has origin at -VERTEX_LAT, 0
@@ -113,7 +534,6 @@ class Cell(object):
             
         # Rotate NW from there by y_index cell widths
         lat_lng = Cell.rotate(lat_lng, (-VERTEX_LAT, -108), 72 * y_index / cell_count)
-
         return (lat_lng)
 
     @staticmethod
@@ -122,44 +542,36 @@ class Cell(object):
             cell_count = CELL_COUNT
         # Start at canonical south point
         lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
-        # Rotate NE from there by one cell width
-        lat_lng = Cell.rotate(lat_lng0, (VERTEX_LAT, -108), 72 / cell_count)
 
+        newlat = lat_lng0[0] + (90 + VERTEX_LAT) / (2 * cell_count)
+        newlng = lat_lng0[1] + 36 / cell_count
+        lat_lng = (newlat, newlng)
         return (lat_lng)
 
     @staticmethod
     def get_canonical_west_point(x_index, y_index, cell_count=None):
         if not cell_count:
             cell_count = CELL_COUNT
-        # Start at canonical south point
+#        # Start at canonical south point
         lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
-        # Rotate NW from there by one cell width
-        lat_lng = Cell.rotate(lat_lng0, (-VERTEX_LAT, -108), 72 / cell_count)
-
+#        # Rotate NW from there by one cell width
+        newlat = lat_lng0[0] + (90 + VERTEX_LAT) / (2 * cell_count)
+        newlng = lat_lng0[1] - 36 / cell_count
+        lat_lng = (newlat, newlng)
         return (lat_lng)
 
     @staticmethod
     def get_canonical_north_point(x_index, y_index, cell_count=None):
         if not cell_count:
             cell_count = CELL_COUNT
-        # Start at canonical east point
-        lat_lng0 = Cell.get_canonical_east_point(x_index, y_index)
-        # Rotate NW from there by one cell width
-        lat_lng = Cell.rotate(lat_lng0, (-VERTEX_LAT, -108), 72 / cell_count)
 
+        # Start at canonical south point
+        lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
+
+        # Rotate N from there by one cell diagonal width
+        newlat = lat_lng0[0] + (90 + VERTEX_LAT) / cell_count
+        lat_lng = (newlat, lat_lng0[1])
         return (lat_lng)
-
-    @staticmethod
-    def get_point_from_canonical(rhomboid, lat_lng):
-        if rhomboid < 5:
-            # Latitude is correct already
-#            return (lat_lng[0], lat_lng[1] + rhomboid % 5 * 72)
-            return (lng180(lat_lng[1] + rhomboid % 5 * 72), lat_lng[0])
-        else:
-            # Start by rotating SE to rhomboid 5
-            se_lat_lng = Cell.rotate(lat_lng, (VERTEX_LAT, 108), 72)
-            # Then do Longitude rotation
-            return (lng180(se_lat_lng[1] + 36 + rhomboid % 5 * 72), se_lat_lng[0])
 
     def __init__(self, rhomboid_num, x_index, y_index):
         self.rhomboid_num = rhomboid_num
@@ -250,6 +662,147 @@ class Rhomboid(object):
 #        logging.debug(out)
         return newlat
     
+    @staticmethod
+    def get_bearing(start_lat_lng, end_lat_lng):
+        if start_lat_lng[0] == -90.0:
+            return 0
+        y = math.sin((end_lat_lng[1] - start_lat_lng[1]) * RADIANS) * math.cos(end_lat_lng[0] * RADIANS)
+        x = math.cos(start_lat_lng[0] * RADIANS) * math.sin(end_lat_lng[0] * RADIANS) - math.sin(start_lat_lng[0] * RADIANS) * math.cos(end_lat_lng[0] * RADIANS) * math.cos((end_lat_lng[1] - start_lat_lng[1]) * RADIANS)
+        b = math.atan2(y, x) / RADIANS
+        return float(truncate(b, DEGREE_DIGITS))
+    
+    @staticmethod
+    def get_point_from_distance_at_bearing(start_lat_lng, distance, bearing):
+        ad = distance/SEMI_MAJOR_AXIS
+        lat1 = start_lat_lng[0] * RADIANS
+        lng1 = start_lat_lng[1] * RADIANS
+        b = bearing * RADIANS
+        lat2 = math.asin( math.sin(lat1) * math.cos(ad) + \
+                          math.cos(lat1)*math.sin(ad)*math.cos(b) )
+        lng2 = lng1 + math.atan2( math.sin(b)*math.sin(ad)*math.cos(lat1), \
+                                  math.cos(ad)-math.sin(lat1)*math.sin(lat2))
+        return (float(truncate(lat2/RADIANS,DEGREE_DIGITS)), float(truncate(lng2/RADIANS,DEGREE_DIGITS)))
+                                 
+    @staticmethod
+    def rotation_axis_xyz(start_lat_lng, end_lat_lng):
+        
+#        In 2- or 3-dimensional Euclidean space, two vectors are orthogonal if their dot product is zero.
+        
+        start_xyz = xyz_from_lat_lng(start_lat_lng)
+        end_xyz = xyz_from_lat_lng(end_lat_lng)
+
+#        out = 'ROTATION_AXIS_XYZ: start_xyz=%s end_xyz=%s' % (start_xyz, end_xyz)
+#        logging.debug(out)
+
+        a1 = start_xyz[0]
+        a2 = start_xyz[1]
+        a3 = start_xyz[2]
+        b1 = end_xyz[0]
+        b2 = end_xyz[1]
+        b3 = end_xyz[2]
+    
+        c1 = a2*b3 - a3*b2
+        c2 = a3*b1 - a1*b3
+        c3 = a1*b2 - a2*b1
+        
+        # test orthogonality by dot products
+#        R = math.sqrt(c1*c1 + c2*c2 + c3*c3)
+#        a.c = a1c1+a2c2+a3c3 = 0
+#        b.c = b1c1+b2c2+b3c3 = 0
+#        c1(a1-b1) + c2(a2-b2) + c3(a3-b3) = 0
+
+#        c1 = c1/R
+#        c2 = c2/R
+#        c3 = c3/R
+#        adotc = a1*c1 + a2*c2 + a3*c3
+#        bdotc = b1*c1 + b2*c2 + b3*c3
+#
+#        out = ' adotc=%s bdotc=%s' % (adotc, bdotc)
+#        logging.debug(out)
+
+        return (c1, c2, c3)
+
+    @staticmethod
+    def get_bearing_ne(rhomboid_num):
+        start_lat_lng = Rhomboid.south_lat_lng(rhomboid_num)
+        end_lat_lng = Rhomboid.east_lat_lng(rhomboid_num)
+        return Rhomboid.get_bearing(start_lat_lng, end_lat_lng, rhomboid_num)
+
+    @staticmethod
+    def get_bearing_nw(rhomboid_num):
+        start_lat_lng = Rhomboid.south_lat_lng(rhomboid_num)
+        end_lat_lng = Rhomboid.west_lat_lng(rhomboid_num)
+        return Rhomboid.get_bearing(start_lat_lng, end_lat_lng, rhomboid_num)
+
+    @staticmethod
+    def south_lat_lng(rhomboid_num):
+        lat = -VERTEX_LAT
+        lng = 0
+        if rhomboid_num < 5:
+            # Latitude is correct already.
+            lng = lng180(72 * (rhomboid_num % 5))
+        else:
+            lat = -90
+            lng = lng180(72 + 72 * (rhomboid_num % 5))
+        # Longitude might as well be zero for the pole.
+        # But note that polygon construction from vertices at the poles may 
+        # be sensitive to the longitude when connecting to an adjacent vertex.
+        return (lat, lng)
+
+    @staticmethod
+    def east_lat_lng(rhomboid_num):
+        lat = VERTEX_LAT
+        lng = 0
+        if rhomboid_num < 5:
+            # Latitude is correct already.
+            lng = lng180(36 + 72 * (rhomboid_num % 5))
+        else:
+            lat = -VERTEX_LAT
+            lng = lng180(72 + 72 * (rhomboid_num % 5))
+        return (lat, lng)
+
+    @staticmethod
+    def west_lat_lng(rhomboid_num):
+        lat = VERTEX_LAT
+        lng = 0
+        if rhomboid_num < 5:
+            # Latitude is correct already
+            lng = lng180(-36 + 72 * (rhomboid_num % 5))
+        else:
+            lat = -VERTEX_LAT
+            lng = lng180(72 * (rhomboid_num % 5))
+        return (lat, lng)
+
+    @staticmethod
+    def north_lat_lng(rhomboid_num):
+        lat = 90
+        lng = 0
+        # For rhomboid_num < 5:
+        # Latitude is correct already.
+        # Longitude might as well be zero for the pole.
+        # But note that polygon construction from vertices at the poles may 
+        # be sensitive to the longitude when connecting to an adjacent vertex.
+        if rhomboid_num >= 5:
+            lat = VERTEX_LAT
+            lng = lng180(36 + 72 * (rhomboid_num % 5))
+        return (lat, lng)
+
+    @staticmethod
+    def south_xyz(rhomboid_num):
+        return xyz_from_lat_lng(Rhomboid.south_lat_lng(rhomboid_num))
+
+    @staticmethod
+    def east_xyz(rhomboid_num):
+        return xyz_from_lat_lng(Rhomboid.east_lat_lng(rhomboid_num))
+
+    @staticmethod
+    def west_xyz(rhomboid_num):
+        return xyz_from_lat_lng(Rhomboid.west_lat_lng(rhomboid_num))
+
+    @staticmethod
+    def north_xyz(rhomboid_num):
+        return xyz_from_lat_lng(Rhomboid.north_lat_lng(rhomboid_num))
+
     @staticmethod
     def canonical_lng(face):
         clng = lng360(face.lng)
@@ -347,7 +900,7 @@ class Rhomboid(object):
         return edge_fraction
         
     @staticmethod
-    def calc_x(clat, clng):
+    def calc_x_index(clat, clng):
         d0, d3 = Rhomboid.get_x_dist(clat, clng)
 #        out = 'd0=%s, d3=%s' % (d0, d3)
 #        logging.debug(out)
@@ -359,9 +912,8 @@ class Rhomboid(object):
         cell_index = int(CELL_COUNT * edge_fraction)
         return cell_index - 1
         
-        
     @staticmethod
-    def calc_y(clat, clng):
+    def calc_y_index(clat, clng):
         d0, d1 = Rhomboid.get_y_dist(clat, clng)
 #        out = 'd0=%s, d1=%s' % (d0, d1)
 #        logging.debug(out)
@@ -379,52 +931,24 @@ class Rhomboid(object):
         self.clat = self.canonical_lat(self.face)
         self.clng = self.canonical_lng(self.face)
         self.num = self.calc_num(self.face)
-        self.x = self.calc_x(self.clat, self.clng)
-        self.y = self.calc_y(self.clat, self.clng)
+        self.x = self.calc_x_index(self.clat, self.clng)
+        self.y = self.calc_y_index(self.clat, self.clng)
         self.key = '%s-%s-%s' % (self.num, self.x, self.y)
+
+def get_cell_polygon(cell_key):        
+    rhomboid_num, x, y = cell_key.split('-')
+    return Cell.polygon(rhomboid_num, x, y)
+
+def get_cell_key(lat, lng):
+    return Rhomboid(lat,lng).key
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)    
     
     f = open('python.out', 'w')
-    
-#    lat=-VERTEX_LAT
-#    lng=0
-#    axis_lat=VERTEX_LAT
-#    axis_lng=36
-#    rotation_angle=72
-#    x=Cell.rotate((lat, lng), (axis_lat, axis_lng), rotation_angle)
-#       
-#    out = 'lat=%s lng=%s rotated by %s around alat=%s alng=%s is nlat=%s nlng=%s' % (lat, lng, rotation_angle, axis_lat, axis_lng, x[0], x[1])
-#    logging.debug(out)
-    
-    for r in range(0,10):
-        for j in range(0,1):
-            for i in range (0,1):
-                out = '%s' % (Cell.polygonKML(r,i,j))
-                logging.debug(out)
-#                out = 'coords=%s' % (Cell.polygon(r,i,j))
-#                logging.debug(out)
-    
-#    lat=18
-#    lng=60
-#    r = Rhomboid(lat, lng)
-#    out = '===lat=%s, lng=%s, key=%s clat=%s clng=%s' % (r.face.lat, r.face.lng, r.key, r.clat, r.clng)
-#    logging.debug(out)
-#    f.write('%s\n' % out)
 
-#    xcellcount = 6
-#    ycellcount = 10
-#    
-#    for j in range(0, xcellcount + 1):
-#      lng = float(-180 + j * 360 / xcellcount)
-#      for i in range(0, ycellcount + 1):
-#        lat = float(-90 + i * 180 / ycellcount)    
-#        r = Rhomboid(lat, lng)
-#        out = 'lat=%s, lng=%s, key=%s' % (r.face.lat, r.face.lng, r.key)
-#        logging.debug(out)
-#        f.write('%s\n' % out)
+    out = '%s' % (Cell.createKmlMesh(CELL_COUNT))
+    logging.debug(out)
 
     f.flush()
     f.close()
-    
