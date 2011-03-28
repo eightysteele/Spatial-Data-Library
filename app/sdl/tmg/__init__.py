@@ -266,11 +266,16 @@ def great_circle_intersection_lat_lngs(p0, p1, p2, p3):
     corrected_lat = p[0]
     corrected_lng = p[1]
     # If the calculated intersection is in the opposite hemisphere, return the antipode instead 
-    if great_circle_distance(p,p0) > math.pi*SEMI_MAJOR_AXIS/2:
+    if not same_hemisphere(p,p0):
         corrected_lng = lng180(p[1] + 180)
         if p[0] != 90.0:
             corrected_lat = -1.0 * p[0] 
     return (corrected_lat,corrected_lng)
+
+def same_hemisphere(p0, p1):    
+    if great_circle_distance(p0,p1) > math.pi*SEMI_MAJOR_AXIS/2:
+        return False
+    return True
     
 class Cell(object):
     '''
@@ -310,7 +315,7 @@ class Cell(object):
         newlat = math.asin(z1) / RADIANS
         newlng = math.atan2(y1, x1) / RADIANS
         return (newlat, newlng)
-    
+           
     @staticmethod
     def polygon(rhomboid_num, x_index, y_index, cell_count=None):
         '''
@@ -483,15 +488,18 @@ class Cell(object):
             p1 = (s_vertex[0],w_vertex[1])
 #            out = 'S half sv=-90 p0=%s p1=%s' % (p0, p1)
 #            logging.debug(out)
+            '''S-out, E, N, W, S-in'''
             return [flip(truncate_lat_lng(p0)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(n_vertex)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(p1))]
         elif n_vertex[0] == 90:
             p2 = (90.0,e_vertex[1])
             p3 = (90.0,w_vertex[1])
 #            out = 'S half nv=+90: p2=%s p3=%s' % (p2, p3)
 #            logging.debug(out)
+            '''S, E, N-in, N-out, W, S'''
             return [flip(truncate_lat_lng(s_vertex)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(p2)), flip(truncate_lat_lng(p3)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(s_vertex))]
 #        out = 'S half sv<>-90 nv<>90 s_vertex=%s' % (str(s_vertex))
 #        logging.debug(out)
+        '''S, E, N, W, S'''
         return [flip(truncate_lat_lng(s_vertex)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(n_vertex)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(s_vertex))]
         
     @staticmethod
@@ -510,9 +518,11 @@ class Cell(object):
         '''Render a triangular mesh of cells in KML.''' 
         placemarks = []
         for n in range(1):
-            for x in range(CELL_COUNT):
-                for y in range(CELL_COUNT):
-                    polygon = Cell.polygon(n, x, y)                                        
+            for x in range(cell_count):
+                for y in range(cell_count):
+#            for x in range(1):
+#                for y in range(1):
+                    polygon = Cell.polygon(n, x, y, cell_count)                                        
                     key = '%s-%s-%s' % (n, x, y)
                     p=Cell.createPlacemark(key, polygon)
                     placemarks.append(p)
@@ -900,47 +910,431 @@ class Rhomboid(object):
         return edge_fraction
         
     @staticmethod
-    def calc_x_index(clat, clng):
+    def calc_x_index(clat, clng, cell_count = None):
+        if cell_count == None:
+            cell_count = CELL_COUNT
+            
         d0, d3 = Rhomboid.get_x_dist(clat, clng)
 #        out = 'd0=%s, d3=%s' % (d0, d3)
 #        logging.debug(out)
         if d3 < 1:
-            return CELL_COUNT - 1;
+            return cell_count - 1;
         if d0 < 1:
             return 0;        
         edge_fraction = Rhomboid.get_x_edge_fraction(d0, d3)
-        cell_index = int(CELL_COUNT * edge_fraction)
+        cell_index = int(cell_count * edge_fraction)
         return cell_index - 1
         
     @staticmethod
-    def calc_y_index(clat, clng):
+    def calc_y_index(clat, clng, cell_count = None):
+        if cell_count == None:
+            cell_count = CELL_COUNT
+
         d0, d1 = Rhomboid.get_y_dist(clat, clng)
 #        out = 'd0=%s, d1=%s' % (d0, d1)
 #        logging.debug(out)
         if d0 < 1:
             return 0
         if d1 < 1:
-            return CELL_COUNT - 1
+            return cell_count - 1
         edge_fraction = Rhomboid.get_y_edge_fraction(d0, d1)
-        cell_index = int(CELL_COUNT * edge_fraction)
+        cell_index = int(cell_count * edge_fraction)
         return cell_index
         
-
-    def __init__(self, lat, lng):
+    def __init__(self, lat, lng, cell_count = None):
         self.face = Face(lat, lng)
         self.clat = self.canonical_lat(self.face)
         self.clng = self.canonical_lng(self.face)
         self.num = self.calc_num(self.face)
-        self.x = self.calc_x_index(self.clat, self.clng)
-        self.y = self.calc_y_index(self.clat, self.clng)
+        self.x = self.calc_x_index(self.clat, self.clng, cell_count)
+        self.y = self.calc_y_index(self.clat, self.clng, cell_count)
         self.key = '%s-%s-%s' % (self.num, self.x, self.y)
 
-def get_cell_polygon(cell_key):        
+def get_cell_polygon(cell_key, cell_count = None):
     rhomboid_num, x, y = cell_key.split('-')
-    return Cell.polygon(rhomboid_num, x, y)
+    return Cell.polygon(rhomboid_num, x, y, cell_count)
 
-def get_cell_key(lat, lng):
-    return Rhomboid(lat,lng).key
+def get_cell_key(lat, lng, cell_count = None):
+    return Rhomboid(lat,lng, cell_count).key
+
+def get_tile(from_ll, to_ll, cell_count = None):
+    '''
+    Return a list of TMG keys given a direction-sensitive geographic coordinate bounding box. 
+    Orientation of the bounding box matters, as this function is meant to support bounding 
+    boxes that span more than 180 degrees of longitude. The tile will be defined by the 
+    direction proceeding from the corner given by from_ll to the corner given by to_ll. Then
+    calculations will be done from NW to SE corner of bounding box.
+    '''
+    if from_ll[0] >= to_ll[0]:
+        bb_n = from_ll[0]
+        bb_s = to_ll[0]
+    else:
+        bb_n = to_ll[0]
+        bb_s = from_ll[0]
+    from_lng = lng180(from_ll[1])
+    to_lng = lng180(to_ll[1])
+    from_sign = signum(from_lng)
+    to_sign = signum(to_lng)
+    if from_sign*to_sign >= 0:
+        '''
+        from and to points are in the same E or W hemisphere.
+        positive lng_dist means go E from from_ll to to_ll.
+        '''
+        lng_dist = from_lng - to_lng
+        if lng_dist >= 0:
+            bb_w = from_lng
+            bb_e = to_lng
+        else:
+            bb_w = to_lng
+            bb_e = from_lng
+    else:
+        '''
+        from and to points are in opposite E and W hemispheres.
+        positive lng_dist means go E from from_ll to to_ll.
+        '''
+        if to_lng < 0:
+            lng_dist = -180 - to_lng + from_lng - 180 
+        else:
+            lng_dist = -180 - from_lng + to_lng - 180 
+
+        if lng_dist >= 0:
+            bb_w = from_lng
+            bb_e = to_lng
+        else:
+            bb_w = to_lng
+            bb_e = from_lng
+            
+    '''Bounding box defined by vertexes (bb_n, bb_w) and (bb_s, bb_e).'''
+    bb = ((bb_n, bb_w), (bb_s, bb_e))
+
+    if cell_count == None:
+        cell_count = CELL_COUNT
+
+    start_cell_key = get_cell_key(bb_n, bb_w, cell_count)
+    '''Tile will be stored as a list of keys.'''
+    key_list = []
+    while start_cell_key != None and cell_in_bb(start_cell_key, bb, cell_count):
+        cell_key_sw = next_cell_sw(start_cell_key, cell_count)
+        if cell_key_sw != None and cell_in_bb(cell_key_sw, bb, cell_count):
+            start_cell_key = cell_key_sw
+        cursor = start_cell_key
+        while cell_in_bb(cursor, bb, cell_count):
+            key_list.append(cursor)
+            cursor = next_cell_ne(cursor, cell_count)
+        last_cell_key = start_cell_key
+        start_cell_key = next_cell_south(bb_w, start_cell_key, cell_count)
+    next_key_ne = next_cell_ne(last_cell_key, cell_count)
+    if next_cell_east(last_cell_key, cell_count) == next_key_ne:
+        start_cell_key = next_cell_east(next_key_ne, cell_count)
+    else:
+        start_cell_key = next_cell_east(last_cell_key, cell_count)
+    cursor = start_cell_key
+    while cell_in_bb(cursor, bb, cell_count):
+        key_list.append(cursor)
+        cursor = next_cell_ne(cursor, cell_count)
+    start_cell_key = next_cell_east(bb_s, start_cell_key,cell_count)
+    return key_list
+
+def cell_in_bb(cell_key, bb, cell_count = None):
+    '''
+    Return True if any part of the cell referred to by cell_key lies within the NW to SE-oriented 
+    bounding box bb, False otherwise.
+    '''
+
+    '''If no cell_count is provided, use the default constant CELL_COUNT.'''
+    if cell_count == None:
+        cell_count = CELL_COUNT
+
+    bb_n = bb[0][0]
+    bb_w = bb[0][1]
+    bb_s = bb[1][0]
+    bb_e = bb[1][1]
+
+    p = get_cell_polygon(cell_key, cell_count)
+    '''
+    For South vertex at -90 latitude:
+        S-out, E, N, W, S-in
+    For North vertex at 90 latitude:
+        S, E, N-in, N-out, W, S
+    For all other cells:
+        S, E, N, W, S
+    '''
+    s = p[0][0]
+    e = p[1][1]
+    n = p[2][0]
+    w = p[len(p)-2][1]
+    
+    if s > bb_n:
+        '''Southern vertex of cell is north of northern limit of bounding box'''
+        return False
+    if n < bb_s:
+        '''Northern vertex of cell is south of southern limit of bounding box'''
+        return False
+
+    '''
+    e_w_dist is the distance (in degrees) between the east and
+    west sides of the bounding box.
+    '''
+    e_w_dist = bb_e - bb_w
+    if e_w_dist < 0:
+        '''
+        Bounding box crosses longitude 180. Translate all longitudes east by the 
+        offset value so that the simple test for in bounding box can be done.
+        '''
+        # e_w_dist = e_w_dist + 360
+        offset = bb_w + 180
+        e = e + offset
+        w = w + offset
+        bb_w = bb_w + offset
+        bb_e = bb_e + offset
+    if e > bb_w and w < bb_e:
+        '''
+        East vertex of the cell is east of the west side of the bounding box and
+        west vertex of the cell is west of the east side of the bounding box.
+        ''' 
+        return True
+    return False
+    
+def next_cell_ne(cell_key, cell_count = None):        
+    '''
+    Return the cell (if any) adjacent to the cell given by rhomboid_num, x, y, cell_count
+    in the NE direction.
+    ''' 
+
+    '''If no cell_count is provided, use the default constant CELL_COUNT.'''
+    if cell_count == None:
+        cell_count = CELL_COUNT
+
+    rhomboid_num, x, y = cell_key.split('-')
+
+    if x < cell_count - 1:
+        '''Next cell NE is in the same rhomboid.'''
+        return (rhomboid_num, x + 1, y)
+
+    '''Next cell NE is in an adjacent rhomboid.'''
+    if rhomboid_num < 5:
+        '''The rhomboid is one of the 5 northern ones.'''
+        if x == cell_count - 1 and y == cell_count - 1:
+            '''The given cell is the northernmost cell in the given rhomboid.'''
+            return None
+        return ((rhomboid_num + 1) % 5, 0, y)
+    
+    '''The rhomboid is one of the 5 southern ones.'''
+    return ((rhomboid_num + 1) % 5, 0, y)
+
+def next_cell_se(cell_key, cell_count = None):
+    '''
+    Return the cell (if any) adjacent to the cell given by rhomboid_num, x, y, cell_count
+    in the SE direction.
+    ''' 
+    
+    '''If no cell_count is provided, use the default constant CELL_COUNT.'''
+    if cell_count == None:
+        cell_count = CELL_COUNT
+    
+    rhomboid_num, x, y = cell_key.split('-')
+
+    if y > 0:
+        '''Next cell SE is in the same rhomboid.'''
+        return (rhomboid_num, x, y - 1)
+
+    '''Next cell SE is in an adjacent rhomboid.'''
+    if rhomboid_num < 5:
+        '''The rhomboid is one of the 5 northern ones.'''
+        return (5 + (rhomboid_num % 5), x, cell_count - 1)
+
+    '''The rhomboid is one of the 5 southern ones.'''
+    if x == 0 and y == 0:
+        '''The given cell is the southernmost cell in the given rhomboid.'''
+        return None
+            
+    return (5 + (rhomboid_num + 1) % 5, x, cell_count - 1)
+
+def next_cell_sw(cell_key, cell_count = None):
+    '''
+    Return the cell (if any) adjacent to the cell given by rhomboid_num, x, y, cell_count
+    in the SW direction.
+    ''' 
+    
+    '''If no cell_count is provided, use the default constant CELL_COUNT.'''
+    if cell_count == None:
+        cell_count = CELL_COUNT
+    
+    rhomboid_num, x, y = cell_key.split('-')
+
+    if x > 0:
+        '''Next cell SW is in the same rhomboid.'''
+        return (rhomboid_num, x - 1, y)
+
+    '''Next cell SW is in an adjacent rhomboid.'''
+    if rhomboid_num < 5:
+        '''The rhomboid is one of the 5 northern ones.'''
+        return (5 + (rhomboid_num + 4) % 5, cell_count - 1, y)
+
+    '''The rhomboid is one of the 5 southern ones.'''
+    if x == 0 and y == 0:
+        '''The given cell is the southernmost cell in the given rhomboid.'''
+        return None
+            
+    return (5 + (rhomboid_num - 1) % 5, cell_count - 1, y)
+
+def next_cell_south(lng, cell_key, cell_count = None):
+    '''
+    Return the cell (if any) due south of the given longitude and
+    cell given by cell_key, cell_count.
+    ''' 
+    
+    '''If no cell_count is provided, use the default constant CELL_COUNT.'''
+    if cell_count == None:
+        cell_count = CELL_COUNT
+
+    next_se = next_cell_se(cell_key, cell_count)
+    if next_se == None:
+        '''The given cell is the southernmost cell in a southern rhomboid.'''
+        return None
+    if lng_in_cell(lng, next_se, cell_count):
+        '''lng crosses the cell to the SE of the given cell.'''
+        return next_se
+    '''lng crosses the cell to the SW of the given cell.'''
+    return next_cell_sw(cell_key, cell_count)
+
+def lng_in_cell(lng, cell_key, cell_count = None):
+
+    p = get_cell_polygon(cell_key, cell_count)
+    '''
+    For South vertex at -90 latitude:
+        S-out, E, N, W, S-in
+    For North vertex at 90 latitude:
+        S, E, N-in, N-out, W, S
+    For all other cells:
+        S, E, N, W, S
+    So, the east vertex is always the second point in the cell polygon and
+    the west vertex is always the penultimate point in the cell polygon. 
+    '''
+    e = p[1][1]
+    w = p[len(p)-2][1]
+    
+    '''
+    e_w_dist is the distance (in degrees) between the east and
+    west vertexes of the given cell.
+    '''
+    e_w_dist = e - w
+    if e_w_dist < 0:
+        '''Cell crosses longitude 180.'''
+        e_w_dist = e_w_dist + 360
+    '''
+    lng_w_dist is the distance (in degrees) between the given lng and the
+    west vertex of the given cell.
+    '''
+    lng_w_dist = lng - w
+    if lng_w_dist < 0:
+        '''West vertex and lng in opposite hemispheres.'''
+        lng_w_dist = lng_w_dist + 360
+    if lng_w_dist > e_w_dist:
+        '''lng is not between east and west vertexes'''
+        return False
+    
+    '''lng is between east and west vertexes'''
+    return True
+
+def next_cell_east(lat, cell_key, cell_count = None):
+    '''
+    Return the cell (if any) due east of the given longitude and
+    cell given by cell_key, cell_count.
+    ''' 
+    
+    '''If no cell_count is provided, use the default constant CELL_COUNT.'''
+    if cell_count == None:
+        cell_count = CELL_COUNT
+
+    next_se = next_cell_se(cell_key, cell_count)
+    if next_se == None:
+        '''
+        The given cell is the southernmost cell in a southern rhomboid.
+        next_se is east of cell_key.
+        '''
+        rhomboid_num, x, y = cell_key.split('-')
+        next_se = '%s-%s-%s' % (5 + (rhomboid_num + 1) % 5, x, y)
+        return next_se
+    if lat_in_cell(lat, next_se, cell_count):
+        '''lat crosses the cell to the SE of the given cell.'''
+        return next_se
+    '''lat crosses the cell to the NE of the given cell.'''
+    return next_cell_ne(cell_key, cell_count)
+
+def lat_in_cell(lat, cell_key, cell_count = None):
+    p = get_cell_polygon(cell_key, cell_count)
+    '''
+    For South vertex at -90 latitude:
+        S-out, E, N, W, S-in
+    For North vertex at 90 latitude:
+        S, E, N-in, N-out, W, S
+    For all other cells:
+        S, E, N, W, S
+    '''
+    s = p[0][0]
+    n = p[2][0]
+    
+    if lat < s:
+        '''lat is south of southern vertex of cell'''
+        return False
+    if lat > n:
+        '''lat is north of northern vertex of cell'''
+        return False
+    return True
+
+#def intersect_east(p, rhomboid_num, x, y, cell_count=None):
+#    if cell_count == None:
+#        cell_count = CELL_COUNT
+#    lat = p[0]
+#    lng = p[1]    
+#    polygon = Cell.polygon(rhomboid_num, x, y)
+#    s_vertex = polygon[0]
+#    e_vertex = polygon[1]
+#    n_vertex = polygon[2]
+#    if lat == e_vertex[0]:
+#        return (lat, e_vertex[1])
+#    if lat > e_vertex[0]:
+#        '''
+#        lat is north of e_vertex, find lat intersect with great circle between
+#        e_vertex and n_vertex.
+#        '''
+#        lng_intersection = nearer_parallel_great_circle_intersection(p, e_vertex, n_vertex)
+#    else:
+#        '''
+#        lat is south of e_vertex, find lat intersect with great circle betweem
+#        e_vertex and s_vertex.
+#        '''
+#        lng_intersection = nearer_parallel_great_circle_intersection(p, s_vertex, e_vertex)
+#    return lng_intersection
+    
+#def nearer_parallel_great_circle_intersection(p0, p1, p2):
+#    '''
+#    Return the nearer (if any) of two intersections where a parallel given by point p0[0] intersect
+#    a great circle defined by p1 and p2.
+#    '''
+#    lat1 = p1[0] * RADIANS
+#    lat2 = p2[0] * RADIANS
+#    lat3 = p0[0] * RADIANS
+#    lon1 = p1[1] * RADIANS
+#    lon2 = p2[1] * RADIANS
+#    l12 = lon1 - lon2
+#    A = math.sin(lat1) * math.cos(lat2) * math.cos(lat3) * math.sin(l12)
+#    B = math.sin(lat1) * math.cos(lat2) * math.cos(lat3) * math.cos(l12) - math.cos(lat1) * math.sin(lat2) * math.cos(lat3)
+#    C = math.cos(lat1) * math.cos(lat2) * math.sin(lat3) * math.sin(l12)
+#    lon = math.atan2(B, A) # atan2(y,x) convention
+#    if (math.abs(C) > math.sqrt(A * A + B * B)):
+#        "no crossing"
+#        return
+#    else:
+#        dlon = math.acos(C / math.sqrt(A * A + B * B))
+#        lon3_1 = ((lon1 + dlon + lon + math.pi) % 2 * math.pi) - math.pi / RADIANS
+#        lon3_2 = ((lon1 - dlon + lon + math.pi) % 2 * math.pi) - math.pi / RADIANS
+##        lon3_1 = math.mod(lon1 + dlon+lon + math.pi, 2*math.pi) - math.pi
+##        lon3_2 = math.mod(lon1 - dlon+lon + math.pi, 2*math.pi) - math.pi
+#    if great_circle_distance(p0, (p0[0], lon3_1)) < great_circle_distance(p0, (p0[0], lon3_2)):
+#        return (p0[0], lon3_1)
+#    return (p0[0], lon3_2) 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)    
