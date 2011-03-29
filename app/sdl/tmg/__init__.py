@@ -16,6 +16,7 @@
 #
 import logging
 import math
+from optparse import OptionParser
 
 '''Set CELL_COUNT to the number of cells on each side of the rhomboid.'''
 CELL_COUNT = 3.0
@@ -322,6 +323,9 @@ class Cell(object):
         Return a list of points (lat longs in degrees) for the vertexes of a cell
         given by the rhomboid index number and x, y offset indexes from the southern vertex of the rhomboid.
         '''
+        rhomboid_num = int(rhomboid_num)
+        x_index = int(x_index)
+        y_index = int(y_index)
         if cell_count == None:
             cell_count=CELL_COUNT
         s = Rhomboid.south_lat_lng(rhomboid_num)
@@ -746,6 +750,7 @@ class Rhomboid(object):
 
     @staticmethod
     def south_lat_lng(rhomboid_num):
+        rhomboid_num = int(rhomboid_num)
         lat = -VERTEX_LAT
         lng = 0
         if rhomboid_num < 5:
@@ -761,6 +766,7 @@ class Rhomboid(object):
 
     @staticmethod
     def east_lat_lng(rhomboid_num):
+        rhomboid_num = int(rhomboid_num)
         lat = VERTEX_LAT
         lng = 0
         if rhomboid_num < 5:
@@ -773,6 +779,7 @@ class Rhomboid(object):
 
     @staticmethod
     def west_lat_lng(rhomboid_num):
+        rhomboid_num = int(rhomboid_num)
         lat = VERTEX_LAT
         lng = 0
         if rhomboid_num < 5:
@@ -785,6 +792,7 @@ class Rhomboid(object):
 
     @staticmethod
     def north_lat_lng(rhomboid_num):
+        rhomboid_num = int(rhomboid_num)
         lat = 90
         lng = 0
         # For rhomboid_num < 5:
@@ -1013,6 +1021,7 @@ def get_tile(from_ll, to_ll, cell_count = None):
     start_cell_key = get_cell_key(bb_n, bb_w, cell_count)
     '''Tile will be stored as a list of keys.'''
     key_list = []
+    last_cell_key = None
     while start_cell_key != None and cell_in_bb(start_cell_key, bb, cell_count):
         cell_key_sw = next_cell_sw(start_cell_key, cell_count)
         if cell_key_sw != None and cell_in_bb(cell_key_sw, bb, cell_count):
@@ -1104,7 +1113,7 @@ def next_cell_ne(cell_key, cell_count = None):
     '''If no cell_count is provided, use the default constant CELL_COUNT.'''
     if cell_count == None:
         cell_count = CELL_COUNT
-
+    
     rhomboid_num, x, y = cell_key.split('-')
 
     if x < cell_count - 1:
@@ -1339,10 +1348,27 @@ def lat_in_cell(lat, cell_key, cell_count = None):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)    
     
-    f = open('python.out', 'w')
+    #f = open('python.out', 'w')
+    # out = '%s' % (Cell.createKmlMesh(CELL_COUNT))
+    # logging.debug(out)
+    # f.flush()
+    # f.close()
 
-    out = '%s' % (Cell.createKmlMesh(CELL_COUNT))
-    logging.debug(out)
+    parser = OptionParser()
+    parser.add_option("-c", "--command", dest="command",
+                      help="TGM command",
+                      default=None)
+    parser.add_option("-f", "--from-ll", dest="ll_from",
+                      help="From Lon/Lat",
+                      default=None)
+    parser.add_option("-t", "--to-ll", dest="ll_to",
+                      help="To Lon/Lat",
+                      default=None)
 
-    f.flush()
-    f.close()
+    (options, args) = parser.parse_args()
+    command = options.command
+    
+    if command == 'get_tile':
+        ll_from = map(float, options.ll_from.split(','))
+        ll_to = map(float, options.ll_to.split(','))
+        print get_tile(ll_from, ll_to)
