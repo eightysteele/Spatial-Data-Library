@@ -57,12 +57,6 @@ SURFACE_DISTANCE_BETWEEN_VERTEXES = 7061546.20147
 # SURFACE_DISTANCE_BETWEEN_VERTEXES = VERTEX_ANGLE*(2 * math.pi * SEMI_MAJOR_AXIS) / 360.0
 
 '''
-CELL_SIDE_LENGTH is the great circle distance between any two 
-adjacent cell vertexes on the sphere whose radius is SEMI_MAJOR_AXIS.
-'''
-CELL_SIDE_LENGTH = SURFACE_DISTANCE_BETWEEN_VERTEXES / CELL_COUNT 
-
-'''
 RADIANS is constant representing the number by which to multiply a value in degrees
 to get the equivalent value in radians.
 '''
@@ -218,18 +212,13 @@ def great_circle_distance(start_lat_lng, end_lat_lng):
     dLon = (end_lat_lng[1] - start_lat_lng[1]) * RADIANS 
     '''a is the square of half the chord length between the points.'''
     a = math.sin(dLat/2) * math.sin(dLat/2) + math.cos(start_lat_lng[0] * RADIANS) * math.cos(end_lat_lng[0] * RADIANS) * math.sin(dLon/2) * math.sin(dLon/2)
-    if a>1:
-        out = 'great_circle_distance(): start_lat_lng = %s end_lat_lng = %s a = %s' % (start_lat_lng, end_lat_lng, a)
-        logging.debug(out)
-        if start_lat_lng[0] == 23.465334500000001:
-            out = 'great_circle_distance(): start_lat_lng = %s end_lat_lng = %s a = %s' % (start_lat_lng, end_lat_lng, a)
-            logging.debug(out)
+    '''Account for rounding errors. If a is very close to 1 set it to one to avoid domain exception.'''
+    if math.fabs(1-a) < 1e-10:
+        a = 1
     '''c is the angular distance in radians between the points.'''
-    test1 = math.sqrt(1-a)
-    test2 = math.sqrt(a)
-    test3 = math.atan2(test2, test1)
-
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    x = math.sqrt(1-a)
+    y = math.sqrt(a)
+    c = 2 * math.atan2(y, x)
     return SEMI_MAJOR_AXIS * c 
 
 def great_circle_intersection_xyz(p0, p1, p2, p3):
@@ -344,83 +333,68 @@ class Cell(object):
         e = Rhomboid.east_lat_lng(rhomboid_num)
         w = Rhomboid.west_lat_lng(rhomboid_num)
         n = Rhomboid.north_lat_lng(rhomboid_num)
-#        out = 'Cell.polygon(): rhomboid_num = %s s = %s e = %s w = %s n = %s' % (rhomboid_num, s, e, w, n)
-#        logging.debug(out)
 
         bearing_we0 = Rhomboid.get_bearing(w,e)
-        distance_we0 = CELL_SIDE_LENGTH*x_index
-        distance_we1 = CELL_SIDE_LENGTH*(x_index+1)
+        distance_we0 = cell_side_length(cell_count)*x_index
+        distance_we1 = cell_side_length(cell_count)*(x_index+1)
         we0 = Rhomboid.get_point_from_distance_at_bearing(w, distance_we0, bearing_we0)
         we1 = Rhomboid.get_point_from_distance_at_bearing(w, distance_we1, bearing_we0)
-#        out = 'dist_we0=%s bearing_we0=%s we0=%s' % (distance_we0, bearing_we0, we0)
-#        logging.debug(out)
-#        out = 'dist_we1=%s bearing_we0=%s we1=%s' % (distance_we1, bearing_we0, we1)
-#        logging.debug(out)
 
         bearing_ew0 = Rhomboid.get_bearing(e,w)
-        distance_ew0 = CELL_SIDE_LENGTH*y_index
-        distance_ew1 = CELL_SIDE_LENGTH*(y_index+1)
+        distance_ew0 = cell_side_length(cell_count)*y_index
+        distance_ew1 = cell_side_length(cell_count)*(y_index+1)
         ew0 = Rhomboid.get_point_from_distance_at_bearing(e, distance_ew0, bearing_ew0)
         ew1 = Rhomboid.get_point_from_distance_at_bearing(e, distance_ew1, bearing_ew0)
-#        out = 'dist_ew0=%s bearing_ew0=%s ew0=%s' % (distance_ew0, bearing_ew0, ew0)
-#        logging.debug(out)
-#        out = 'dist_ew1=%s bearing_ew0=%s ew1=%s' % (distance_ew1, bearing_ew0, ew1)
-#        logging.debug(out)
 
         bearing_se0 = Rhomboid.get_bearing(s,e)
-        distance_se0 = CELL_SIDE_LENGTH*x_index
+        distance_se0 = cell_side_length(cell_count)*x_index
         se0 = Rhomboid.get_point_from_distance_at_bearing(s, distance_se0, bearing_se0)
-#        out = 'dist_se0=%s bearing_se0=%s se0=%s' % (distance_se0, bearing_se0, se0)
-#        logging.debug(out)
 
         bearing_sw0 = Rhomboid.get_bearing(s,w)
-        distance_sw0 = CELL_SIDE_LENGTH*y_index
+        distance_sw0 = cell_side_length(cell_count)*y_index
         if s[0] == -90.0:
             sw0 = Rhomboid.get_point_from_distance_at_bearing((-90.0,w[1]), distance_sw0, bearing_sw0)
         else:
             sw0 = Rhomboid.get_point_from_distance_at_bearing(s, distance_sw0, bearing_sw0)
-#        out = 'dist_sw0=%s bearing_sw0=%s sw0=%s' % (distance_sw0, bearing_sw0, sw0)
-#        logging.debug(out)
 
-        distance_se1 = CELL_SIDE_LENGTH*(x_index+1)
+        distance_se1 = cell_side_length(cell_count)*(x_index+1)
         se1 = Rhomboid.get_point_from_distance_at_bearing(s, distance_se1, bearing_se0)
-#        out = 'dist_se1=%s bearing_se0=%s se1=%s' % (distance_se1, bearing_se0, se1)
-#        logging.debug(out)
         
-        distance_sw1 = CELL_SIDE_LENGTH*(y_index+1)
+        distance_sw1 = cell_side_length(cell_count)*(y_index+1)
+
+        cell_key = get_cell_key((rhomboid_num, x_index, y_index))
+#        if cell_key == '5-0-8':
+#            out = 'cell.polygon() cell_key = %s' % (str(cell_key))
+#            logging.debug(out)
+
         if s[0] == -90.0:
             sw1 = Rhomboid.get_point_from_distance_at_bearing((-90.0,w[1]), distance_sw1, bearing_sw0)
         else:
             sw1 = Rhomboid.get_point_from_distance_at_bearing(s, distance_sw1, bearing_sw0)
-#        out = 'dist_sw1=%s bearing_sw0=%s sw1=%s' % (distance_sw1, bearing_sw0, sw1)
-#        logging.debug(out)
         
         bearing_en0 = Rhomboid.get_bearing(e,n)
-        distance_en0 = CELL_SIDE_LENGTH*y_index
+        distance_en0 = cell_side_length(cell_count)*y_index
         en0 = Rhomboid.get_point_from_distance_at_bearing(e, distance_en0, bearing_en0)
-#        out = 'dist_en0=%s bearing_en0=%s en0=%s' % (distance_en0, bearing_en0, en0)
-#        logging.debug(out)
 
-        distance_en1 = CELL_SIDE_LENGTH*(y_index+1)
+        distance_en1 = cell_side_length(cell_count)*(y_index+1)
         en1 = Rhomboid.get_point_from_distance_at_bearing(e, distance_en1, bearing_en0)
-#        out = 'dist_en1=%s bearing_en0=%s en1=%s' % (distance_en1, bearing_en0, en1)
-#        logging.debug(out)
         
         bearing_wn0 = Rhomboid.get_bearing(w,n)
-        distance_wn0 = CELL_SIDE_LENGTH*x_index
+        distance_wn0 = cell_side_length(cell_count)*x_index
         wn0 = Rhomboid.get_point_from_distance_at_bearing(w, distance_wn0, bearing_wn0)
-#        out = 'dist_wn0=%s bearing_wn0=%s wn0=%s' % (distance_wn0, bearing_wn0, wn0)
-#        logging.debug(out)
 
-        distance_wn1 = CELL_SIDE_LENGTH*(x_index+1)
+        distance_wn1 = cell_side_length(cell_count)*(x_index+1)
         pre_wn1 = Rhomboid.get_point_from_distance_at_bearing(w, distance_wn1, bearing_wn0)
         if pre_wn1[0] == 90.0:
             wn1 = (90.0, wn0[1])
         else:
             wn1 = pre_wn1
-#        out = 'dist_wn1=%s bearing_wn0=%s wn1=%s' % (distance_wn1, bearing_wn0, wn1)
-#        logging.debug(out)
                 
+        cell_key = get_cell_key((rhomboid_num, x_index, y_index))
+#        if cell_key == '5-0-8' or cell_key == '5-0-7':
+#            out = 'cell.polygon() cell_key = %s' % (str(cell_key))
+#            logging.debug(out)
+
         if x_index + y_index == 0 and rhomboid_num >= 5:
             # S vertex on S pole
             s_vertex = (-90.0,e[1])
@@ -428,7 +402,7 @@ class Cell(object):
             w_vertex = sw1
 #            out = '0a) S cell vertex on S pole e_vertex=%s w_vertex=%s' % (e_vertex, w_vertex)
 #            logging.debug(out)
-            if x_index + y_index < CELL_COUNT-1:
+            if x_index + y_index < cell_count-1:
                 # N cell vertex in or on S triangle also
                 n_vertex = great_circle_intersection_lat_lngs(se1,we1, sw1,ew1)
 #                out = '0b) N cell vertex in or on S triangle n_vertex=%s' % (str(n_vertex))
@@ -442,7 +416,7 @@ class Cell(object):
 #                out = '0c) N cell vertex in N triangle n_vertex=%s' % (str(n_vertex))
 #                logging.debug(out)
                 
-        elif x_index + y_index <= CELL_COUNT:
+        elif x_index + y_index <= cell_count:
             # S cell vertex in or on S triangle
             if equal_lat_lng(se0,sw0):
                 s_vertex = se0
@@ -453,7 +427,7 @@ class Cell(object):
                 s_vertex = great_circle_intersection_lat_lngs(se0,we0, sw0,ew0)
 #                out = '1b) S cell vertex in S triangle s_vertex=%s' % (str(s_vertex))
 #                logging.debug(out)
-            if x_index + y_index < CELL_COUNT:
+            if x_index + y_index < cell_count:
                 # E, W cell vertexes in or on S triangle   
                 if equal_lat_lng(se1,we1):
                     e_vertex = se1
@@ -476,7 +450,7 @@ class Cell(object):
                 w_vertex = great_circle_intersection_lat_lngs(we0,wn0, ew1,en1)
 #                out = '3) E,W cell vertexes in N triangle e_vertex=%s w_vertex=%s' % (e_vertex, w_vertex)
 #                logging.debug(out)
-            if x_index + y_index < CELL_COUNT-1:
+            if x_index + y_index < cell_count-1:
                 # N cell vertex in or on S triangle also
                 n_vertex = great_circle_intersection_lat_lngs(se1,we1, sw1,ew1)
 #                out = '4) N cell vertex in or on S triangle also n_vertex=%s' % (str(n_vertex))
@@ -550,7 +524,7 @@ class Cell(object):
         logging.debug(out)
         for key in key_list:
             '''Get the rhomboid_num, x, and y from the cell_key'''
-            rhomboid_num, x, y = get_cell_attributes(cell_key)
+            rhomboid_num, x, y = get_cell_attributes(key)
             polygon = Cell.polygon(rhomboid_num, x, y, cell_count)                                        
             p=Cell.createPlacemark(key, polygon)
             placemarks.append(p)
@@ -567,6 +541,11 @@ class Cell(object):
             for y in range(cell_count):
                 polygon = Cell.polygon(rhomboid_num, x, y, cell_count)                                        
                 key = get_cell_key( (rhomboid_num, x, y) )
+#                if key == '5-0-8' or key == '5-0-7':
+#                    out = 'createKmlMesh(): key = %s polygon = %s' % (key, polygon)
+#                    logging.debug(out)
+#                    p=Cell.createPlacemark(key, polygon)
+#                    placemarks.append(p)
                 p=Cell.createPlacemark(key, polygon)
                 placemarks.append(p)
         return KML % ' '.join(placemarks)
@@ -734,15 +713,31 @@ class Rhomboid(object):
     
     @staticmethod
     def get_point_from_distance_at_bearing(start_lat_lng, distance, bearing):
-        '''Document this!!!'''
+        '''
+        Returns the destination point in degrees lat, lng truncated to the default number of
+        digits of precision by going the given distance at the bearing from the start_lat_lng.
+        '''
+        '''Formulas taken from http://www.movable-type.co.uk/scripts/latlong.html.'''
+        '''ad is the angular distance (in radians) traveled.'''
         ad = distance/SEMI_MAJOR_AXIS
+        '''lat1 is the latitude of the starting point in radians.'''
         lat1 = start_lat_lng[0] * RADIANS
+        '''lng1 is the longitude of the starting point in radians.'''
         lng1 = start_lat_lng[1] * RADIANS
+        '''b is the bearing direction in radians.'''
         b = bearing * RADIANS
-        lat2 = math.asin( math.sin(lat1) * math.cos(ad) + \
-                          math.cos(lat1)*math.sin(ad)*math.cos(b) )
-        lng2 = lng1 + math.atan2( math.sin(b)*math.sin(ad)*math.cos(lat1), \
-                                  math.cos(ad)-math.sin(lat1)*math.sin(lat2))
+        '''lat2 is the latitude of the end point in radians.'''
+        lat2 = math.asin( math.sin(lat1) * math.cos(ad) + math.cos(lat1) * math.sin(ad) * math.cos(b) )
+        y = math.sin(b) * math.sin(ad) * math.cos(lat1)
+        x = math.cos(ad) - math.sin(lat1) * math.sin(lat2)
+        '''
+        Account for rounding errors. If x is very close to 0, set it to 0 to avoid incorrect hemisphere determination.
+        For example, is x = -1.1e-16, atan2(0,x) will be -math.pi when it should be 0.
+        '''
+        if math.fabs(x) < 1e-10:
+            x = 0
+        '''lng2 is the longitude of the end point in radians.'''
+        lng2 = lng1 + math.atan2(y, x)
         return (float(truncate(lat2/RADIANS,DEGREE_DIGITS)), float(truncate(lng2/RADIANS,DEGREE_DIGITS)))
                                  
     @staticmethod
@@ -1028,10 +1023,20 @@ class Rhomboid(object):
         self.y = self.calc_y_index(self.clat, self.clng, cell_count)
         self.key = get_cell_key( (self.num, self.x, self.y) )
 
+def cell_side_length(cell_count = None):
+    '''
+    The cell side length is the great circle distance between any two 
+    adjacent cell vertexes on the sphere whose radius is SEMI_MAJOR_AXIS.
+    '''
+
+    '''If no cell_count is provided, use the default constant CELL_COUNT.'''
+    if cell_count == None:
+        cell_count = CELL_COUNT
+    
+    return SURFACE_DISTANCE_BETWEEN_VERTEXES / cell_count 
+
 def get_cell_polygon(cell_key, cell_count = None):
     '''Return the polygon for a given cell_key and cell_count. Polygon vertexes are in lng, lat pairs.'''
-#    out = 'get_cell_polygon(): cell_key = %s' % (str(cell_key))
-#    logging.debug(out)
     rhomboid_num, x, y = cell_key.split('-')
 #    out = 'r = %s x = %s y = %s cell_key = %s' % (rhomboid_num, x, y, cell_key)
 #    logging.debug(out)
@@ -1130,13 +1135,10 @@ def get_tile(from_ll, to_ll, orientation, cell_count = None):
     corner given by from_ll to the corner given by to_ll in the direction given by orientation. 
     Then tile determinations will be done from NW corner of the bounding box to the SE corner.
     '''
-#    out = 'ENTER get_tile(): from_ll = %s to_ll = %s orientation = %s cell_count = %s' % (from_ll, to_ll, orientation, cell_count)
-#    logging.debug(out)
 
     '''If no cell_count is provided, use the default constant CELL_COUNT.'''
     if cell_count == None:
         cell_count = CELL_COUNT
-
 
     '''Bounding box defined by vertexes (bb_n, bb_w) and (bb_s, bb_e).'''
     bb = get_oriented_bounding_box(from_ll, to_ll, orientation)
@@ -1145,13 +1147,8 @@ def get_tile(from_ll, to_ll, orientation, cell_count = None):
     bb_s = bb[1][0]
     bb_e = bb[1][1]
     
-#    out = 'get_tile(): From Lat/Lng: %s To Lat/Lng: %s Orientation: %s Bounding Box bb = %s' % (from_ll, to_ll, orientation, bb)
-#    logging.debug(out)
-
     '''Begin cell iteration in the northwest corner of the bounding box.'''
     start_cell_key = get_cell_key_from_lat_lng(bb_n, bb_w, cell_count)
-#    out = 'get_tile(): start_cell_key: %s bb_n = %s bb_w = %s' % (start_cell_key, bb_n, bb_w)
-#    logging.debug(out)
 
     '''The tile will be stored as a list of keys.'''
     key_list = []
@@ -1172,16 +1169,11 @@ def get_tile(from_ll, to_ll, orientation, cell_count = None):
         cursor = start_cell_key
         while cell_in_bb(cursor, bb, cell_count):
             key_list.append(cursor)
-#            out = 'get_tile(): key_list = %s' % (key_list)
-#            logging.debug(out)
             cursor = get_cell_key(next_cell_ne(cursor, cell_count))
         last_cell_key = start_cell_key
         start_cell_key = get_cell_key(next_cell_south(bb_w, start_cell_key, cell_count))
     next_key_ne = get_cell_key(next_cell_ne(last_cell_key, cell_count))
-#    out = 'get_tile(): last_cell_key = %s' % (last_cell_key)
-#    logging.debug(out)
-#    out = 'get_tile(): next_key_ne = %s' % (next_key_ne)
-#    logging.debug(out)
+
     '''
     Up to this point the cells intersecting the west edge of the bounding box 
     have been included in the list along with all of the ones NE from these that
@@ -1191,11 +1183,7 @@ def get_tile(from_ll, to_ll, orientation, cell_count = None):
     ''' 
     next_e = get_cell_key(next_cell_east(bb_s, last_cell_key, cell_count))
     if next_e == next_key_ne:
-#        out = 'get_tile(): next_key_ne = %s' % (next_key_ne)
-#        logging.debug(out)
         next_e = next_cell_east(bb_s, next_key_ne, cell_count)
-#        out = 'get_tile(): next_e = %s' % (str(next_e))
-#        logging.debug(out)
         start_cell_key = get_cell_key(next_e)
     else:
         start_cell_key = get_cell_key(next_cell_east(bb_s, last_cell_key, cell_count))
