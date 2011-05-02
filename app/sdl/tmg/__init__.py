@@ -1169,6 +1169,55 @@ def get_oriented_bounding_box(from_ll, to_ll, orientation = 0):
 #    logging.debug(out)
     return bb
     
+class CellPolygon(object):
+    def __init__(self, cellkey, polygon):
+        self._cellkey = cellkey
+        self._polygon = polygon
+        self._hashcode = hash((self._cellkey, self._polygon))
+        
+    def getcellkey(self): 
+        return self._cellkey
+    cellkey = property(getcellkey)
+        
+    def getpolygon(self):
+        return self._polygon
+    polygon = property(getpolygon)
+        
+    def __str__(self):
+        return str(self.__dict__)
+
+    def __eq__(cp1, cp2):
+        return cp1._hashcode == cp2._hashcode
+
+    def __hash__(self):
+        return self._hashcode
+
+    def __cmp__(self, other):
+        if self.cellkey > other.cellkey:
+            return 1
+        elif self.cellkey < other.cellkey:
+            return -1
+        return 0
+               
+def gettile(nwcorner, secorner, resolution, cell_count = CELL_COUNT):
+    cells = set()
+    north = nwcorner[1]
+    west = nwcorner[0]
+    south = secorner[1]
+    east = secorner[0]
+    lng = west
+    lat = north
+    while lng <= east:
+        while lat >= south:
+            cellkey = get_cell_key_from_lat_lng(lat, lng)
+            polygon = tuple(get_cell_polygon(cellkey))
+            cells.add(CellPolygon(cellkey, polygon))
+            lat -= resolution
+        lat = north
+        lng += resolution
+    return cells
+
+    
 def get_tile(from_ll, to_ll, orientation, cell_count = None):
     '''
     Return a list of TMG keys given a direction-sensitive geographic coordinate bounding box. 
