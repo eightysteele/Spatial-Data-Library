@@ -1,19 +1,31 @@
 #!/usr/bin/env python
-#
+
 # Copyright 2011 Jante LLC and University of Kansas
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+__author__ = "Aaron Steele, Dave Vieglais, and John Wieczorek"
+
+"""
+This module supports the conversion of geographic coordinates to a
+global, equal-area Triangular Mesh grid, which conserves cell size
+and minimizes the number of cells required to cover the an are of
+the surface of a spheroid.
+
+The Triangular Mesh Grid design is specified here:
+http://goo.gl/0awGK
+"""
+
 import logging
 import math
 from optparse import OptionParser
@@ -169,11 +181,20 @@ def equal_lat_lng(p0, p1):
     '''Determine if two degree lat longs are the same within the tolerance given by digits places to the right of the decimal.'''
     return (equal_within_tolerance(p0[0], p1[0], DEGREE_DIGITS) and equal_within_tolerance(lng180(p0[1]), lng180(p1[1]), DEGREE_DIGITS)) 
 
+def lat90(lat):
+    '''Given a latitude in degrees, returns a latitude in degrees between {-90, 90] and truncated to the default degree precision.'''
+    newlat = float(lat)
+    if newlat <= -90:
+        newlat = -90
+    elif newlat > 90:
+        newlat = 90
+    return float(truncate(newlat, DEGREE_DIGITS))
+
 def lng180(lng):
     '''Given a longitude in degrees, returns a longitude in degrees between {-180, 180].'''
     newlng = float(lng)
     if newlng <= -180:
-        newlng = lng + 360
+        newlng = newlng + 360
     elif newlng > 180:
         newlng = newlng - 360
     return float(truncate(newlng, DEGREE_DIGITS))
@@ -187,7 +208,7 @@ def lng360(lng):
     return float(truncate(lng, DEGREE_DIGITS))
 
 def xyz_from_lat_lng((lat, lng)):
-    '''Returns the Cartesian coordinates of a lat long on a unit sphere.'''
+    '''Returns the Cartesian coordinates of a lat long in degrees on a unit sphere.'''
     x = math.cos(lat * RADIANS) * math.cos(lng * RADIANS)
     y = math.cos(lat * RADIANS) * math.sin(lng * RADIANS)
     z = math.sin(lat * RADIANS)
@@ -195,14 +216,23 @@ def xyz_from_lat_lng((lat, lng)):
 
 def lat_lng_from_xyz((x, y, z)):
     '''Returns the lat long (in degrees) of Cartesian coordinates on a unit sphere.'''
-    R=math.sqrt(x*x+y*y+z*z)
+    R = math.sqrt( x*x + y*y + z*z)
     znorm = z/R
     ynorm = y/R
     xnorm = x/R
-    lng = math.atan2(ynorm,xnorm) / RADIANS
-    lat = math.asin(znorm) / RADIANS
+    lng = math.atan2( ynorm, xnorm ) / RADIANS
+    lat = math.asin( znorm ) / RADIANS
     return (lat, lng)
 
+def cartesian_distance(fromlat, fromlng, tolat, tolng, radius):
+    '''
+    Returns the Cartesian distance between two points given by
+    fromlat, fromlng) and (tolat, tolng) on a sphere of the given radius.
+    '''
+    from_x, from_y, from_z = tuple(map( lambda x: radius*x, xyz_from_lat_lng((fromlat,fromlng))))
+    to_x, to_y, to_z = tuple(map( lambda x: radius*x, xyz_from_lat_lng((tolat,tolng))))
+    return math.sqrt(sqr(from_x - to_x) + sqr(from_y - to_y) + sqr(from_z - to_z))
+    
 def great_circle_distance(start_lat_lng, end_lat_lng):
     '''
     Returns the distance along a great circle between two lat longs on the surface of a
@@ -556,15 +586,17 @@ class Cell(object):
         # This isn't correct. Rotations depend on the index.
         if not cell_count:
             cell_count = CELL_COUNT
+
+        cvl = lat90(VERTEX_LAT)
         # Canonical rhomboid 0 has origin at -VERTEX_LAT, 0
-        lat_lng0 = (-VERTEX_LAT, 0)
-        axis_lat_lng = (VERTEX_LAT, -108)
+        lat_lng0 = (-cvl, 0)
+        axis_lat_lng = (cvl, -108)
 
         # Rotate NE from the origin by x_index cell widths
         lat_lng = Cell.rotate(lat_lng0, axis_lat_lng, 72 * x_index / cell_count)
             
         # Rotate NW from there by y_index cell widths
-        lat_lng = Cell.rotate(lat_lng, (-VERTEX_LAT, -108), 72 * y_index / cell_count)
+        lat_lng = Cell.rotate(lat_lng, (-cvl, -108), 72 * y_index / cell_count)
         return (lat_lng)
 
     @staticmethod
@@ -572,10 +604,12 @@ class Cell(object):
         '''Document this!!!'''
         if not cell_count:
             cell_count = CELL_COUNT
+
+        cvl = lat90(VERTEX_LAT)
         # Start at canonical south point
         lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
 
-        newlat = lat_lng0[0] + (90 + VERTEX_LAT) / (2 * cell_count)
+        newlat = lat_lng0[0] + (90 + cvl) / (2 * cell_count)
         newlng = lat_lng0[1] + 36 / cell_count
         lat_lng = (newlat, newlng)
         return (lat_lng)
@@ -585,10 +619,12 @@ class Cell(object):
         '''Document this!!!'''
         if not cell_count:
             cell_count = CELL_COUNT
-#        # Start at canonical south point
+
+        cvl = lat90(VERTEX_LAT)
+        # Start at canonical south point
         lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
-#        # Rotate NW from there by one cell width
-        newlat = lat_lng0[0] + (90 + VERTEX_LAT) / (2 * cell_count)
+        # Rotate NW from there by one cell width
+        newlat = lat_lng0[0] + (90 + cvl) / (2 * cell_count)
         newlng = lat_lng0[1] - 36 / cell_count
         lat_lng = (newlat, newlng)
         return (lat_lng)
@@ -599,11 +635,12 @@ class Cell(object):
         if not cell_count:
             cell_count = CELL_COUNT
 
+        cvl = lat90(VERTEX_LAT)
         # Start at canonical south point
         lat_lng0 = Cell.get_canonical_south_point(x_index, y_index)
 
         # Rotate N from there by one cell diagonal width
-        newlat = lat_lng0[0] + (90 + VERTEX_LAT) / cell_count
+        newlat = lat_lng0[0] + (90 + cvl) / cell_count
         lat_lng = (newlat, lat_lng0[1])
         return (lat_lng)
 
@@ -682,16 +719,19 @@ class Face(object):
 
     @staticmethod
     def get_equatorial(lat, lng):
-        ''' lat and lng are somewhere in the equatorial zone, between the northern 
+        '''
+        lat and lng are somewhere in the equatorial zone, between the northern 
         and southern faces. Find which of ten equal sections around the equator 
-        lng falls into by rotating lng to equivalent longitude at lat=0.
+        lng falls into by rotating lng to equivalent longitude at lat = 0.
         '''
         clng = lng180(lng)
+        clat = lat90(lat)
+        cvl = lat90(VERTEX_LAT)
         section = 0
         if clng >= -18:
-            section = int(math.floor((18 + clng + (18 * (lat / VERTEX_LAT))) / 36))
+            section = int(math.floor((18 + clng + (18 * (clat / cvl))) / 36))
         else:
-            section = int(math.floor((18 + 360 + clng + (18 * (lat / VERTEX_LAT))) / 36))
+            section = int(math.floor((18 + 360 + clng + (18 * (clat / cvl))) / 36))
         # Even numbered sections are northern facets [5,9]:
         if section % 2 == 0:
             face = 5 + (section / 2)
@@ -703,18 +743,20 @@ class Face(object):
     @staticmethod
     def get_face_number(lat, lng):
         '''Return the face of the icosahedron onto which the lat lng projects.'''
-        if lat >= VERTEX_LAT:
+        clat = lat90(lat)
+        cvl = lat90(VERTEX_LAT)
+        if clat >= cvl:
             face = Face.get_northern(lng)
-        elif lat < -(VERTEX_LAT):
+        elif clat < -cvl:
             face = Face.get_southern(lng)
         else:
             face = Face.get_equatorial(lat, lng)
         return face
 
     def __init__(self, lat, lng):
-        self.lat = lat
-        self.lng = lng
-        self.num = self.get_face_number(lat, lng)
+        self.lat = lat90(lat)
+        self.lng = lng180(lng)
+        self.num = self.get_face_number(self.lat, self.lng)
 
 class Rhomboid(object):
     '''Document this!!!'''
@@ -736,9 +778,17 @@ class Rhomboid(object):
         z1 = z1 + ((1 - cosa) * (c3 * c1 * x + c3 * c2 * y + c3 * c3 * z))
         z1 = z1 + (((c1 * y) - (c2 * x)) * sina)
         newlat = math.asin(z1) / RADIANS
-#        out = 'canonical_lat(face.num=%s) x=%s, y=%s, z=%s z1=%s face.lat=%s clng=%s' % (face.num, x, y, z, z1, face.lat, clng)
-#        logging.debug(out)
-        return newlat
+        return lat90(newlat)
+    
+    @staticmethod
+    def canonical_lng(face):
+        '''Document this!!!'''
+        clng = lng360(face.lng)
+        if face.num >= 10 and face.num < 15:
+            clng = clng - 36 - (face.num % 5) * 72;
+        else:
+            clng = clng - (face.num % 5) * 72;
+        return lng360(clng)
     
     @staticmethod
     def get_bearing(start_lat_lng, end_lat_lng):
@@ -836,7 +886,7 @@ class Rhomboid(object):
     @staticmethod
     def south_lat_lng(rhomboid_num):
         '''Document this!!!'''
-        lat = -VERTEX_LAT
+        lat = -lat90(VERTEX_LAT)
         lng = 0
         if rhomboid_num < 5:
             # Latitude is correct already.
@@ -852,26 +902,26 @@ class Rhomboid(object):
     @staticmethod
     def east_lat_lng(rhomboid_num):
         '''Document this!!!'''
-        lat = VERTEX_LAT
+        lat = lat90(VERTEX_LAT)
         lng = 0
         if rhomboid_num < 5:
             # Latitude is correct already.
             lng = lng180(36 + 72 * (rhomboid_num % 5))
         else:
-            lat = -VERTEX_LAT
+            lat = -lat90(VERTEX_LAT)
             lng = lng180(72 + 72 * (rhomboid_num % 5))
         return (lat, lng)
 
     @staticmethod
     def west_lat_lng(rhomboid_num):
         '''Document this!!!'''
-        lat = VERTEX_LAT
+        lat = lat90(VERTEX_LAT)
         lng = 0
         if rhomboid_num < 5:
             # Latitude is correct already
             lng = lng180(-36 + 72 * (rhomboid_num % 5))
         else:
-            lat = -VERTEX_LAT
+            lat = -lat90(VERTEX_LAT)
             lng = lng180(72 * (rhomboid_num % 5))
         return (lat, lng)
 
@@ -886,7 +936,7 @@ class Rhomboid(object):
         # But note that polygon construction from vertices at the poles may 
         # be sensitive to the longitude when connecting to an adjacent vertex.
         if rhomboid_num >= 5:
-            lat = VERTEX_LAT
+            lat = lat90(VERTEX_LAT)
             lng = lng180(36 + 72 * (rhomboid_num % 5))
         return (lat, lng)
 
@@ -911,37 +961,6 @@ class Rhomboid(object):
         return xyz_from_lat_lng(Rhomboid.north_lat_lng(rhomboid_num))
 
     @staticmethod
-    def canonical_lng(face):
-        '''Document this!!!'''
-        clng = lng360(face.lng)
-        if face.num >= 10 and face.num < 15:
-            clng = clng - 36 - (face.num % 5) * 72;
-        else:
-            clng = clng - (face.num % 5) * 72;
-#        out = 'canonical_lng(face.num=%s), clng=%s' % (face.num, clng)
-#        logging.debug(out)
-        return lng360(clng)
-    
-    @staticmethod
-    def cartesian_dist(fromlat, fromlng, tolat, tolng, radius):
-        '''Document this!!!'''
-        from_x = radius * math.cos(fromlat * RADIANS) * math.cos(fromlng * RADIANS)
-        from_y = radius * math.cos(fromlat * RADIANS) * math.sin(fromlng * RADIANS)
-        from_z = radius * math.sin(fromlat * RADIANS)
-        to_x = radius * math.cos(tolat * RADIANS) * math.cos(tolng * RADIANS)
-        to_y = radius * math.cos(tolat * RADIANS) * math.sin(tolng * RADIANS)
-        to_z = radius * math.sin(tolat * RADIANS)
-        dist = sqr(from_x - to_x)
-        dist = dist + sqr(from_y - to_y)
-        dist = dist + sqr(from_z - to_z)
-        dist = math.sqrt(dist)
-#        out = 'fromlat = %s fromlng = %s \ntolat = %s tolng = %s' % (fromlat, fromlng, tolat, tolng)
-#        logging.debug(out)
-#        out = 'dist = %s \n  from_x = %s, from_y = %s from_z = %s \n  to_x = %s to_y = %s to_z = %s' % (dist, from_x, from_y, from_z, to_x, to_y, to_z)
-#        logging.debug(out)
-        return dist
-    
-    @staticmethod
     def calc_num(face):
         '''Return the rhomboid number given a face.'''
         if face.num < 10:
@@ -954,69 +973,57 @@ class Rhomboid(object):
     def get_x_dist(clat, clng):
         '''Document this!!!'''
         cface = Face.get_face_number(clat, clng)
-#        out = 'get_x_dist(clat = %s clng = %s) VERTEX_LAT = %s diff = %s' % (clat, clng, VERTEX_LAT, VERTEX_LAT-clat)
-#        logging.debug(out)
+        cvl = lat90(VERTEX_LAT)
         if cface == 5:
-            d3 = Rhomboid.cartesian_dist(clat, clng, VERTEX_LAT, 36, SEMI_MAJOR_AXIS)
-            d0 = Rhomboid.cartesian_dist(clat, clng, -(VERTEX_LAT), 0, SEMI_MAJOR_AXIS)
+            d3 = cartesian_distance(clat, clng, cvl, 36, SEMI_MAJOR_AXIS)
+            d0 = cartesian_distance(clat, clng, -cvl, 0, SEMI_MAJOR_AXIS)
         else:
-            d0 = Rhomboid.cartesian_dist(clat, clng, VERTEX_LAT, -36, SEMI_MAJOR_AXIS)
-            d3 = Rhomboid.cartesian_dist(clat, clng, 90, 0, SEMI_MAJOR_AXIS)
+            d0 = cartesian_distance(clat, clng, cvl, -36, SEMI_MAJOR_AXIS)
+            d3 = cartesian_distance(clat, clng, 90, 0, SEMI_MAJOR_AXIS)
         return (d0, d3)
 
     @staticmethod
     def get_y_dist(clat, clng):
         '''Document this!!!'''
         cface = Face.get_face_number(clat, clng)
+        cvl = lat90(VERTEX_LAT)
         if cface == 5:
-            d0 = Rhomboid.cartesian_dist(clat, clng, -(VERTEX_LAT), 0, SEMI_MAJOR_AXIS)
+            d0 = cartesian_distance(clat, clng, -cvl, 0, SEMI_MAJOR_AXIS)
             d0 = math.floor(d0)
-            d1 = Rhomboid.cartesian_dist(clat, clng, VERTEX_LAT, -36, SEMI_MAJOR_AXIS)
+            d1 = cartesian_distance(clat, clng, cvl, -36, SEMI_MAJOR_AXIS)
             d1 = math.floor(d1)
         else:
-            d0 = Rhomboid.cartesian_dist(clat, clng, VERTEX_LAT, 36, SEMI_MAJOR_AXIS)
+            d0 = cartesian_distance(clat, clng, cvl, 36, SEMI_MAJOR_AXIS)
             d0 = math.floor(d0)
-            d1 = Rhomboid.cartesian_dist(clat, clng, 90, 0, SEMI_MAJOR_AXIS)
+            d1 = cartesian_distance(clat, clng, 90, 0, SEMI_MAJOR_AXIS)
             d1 = math.floor(d1)
         return (d0, d1)
 
     @staticmethod
-    def get_x_edge_fraction(d0, d3):
-        '''Document this!!!'''
-        dist_from_d0 = (EDGE_LENGTH * EDGE_LENGTH - d3 * d3 + d0 * d0) / (2 * EDGE_LENGTH)
-        edge_fraction = dist_from_d0 / EDGE_LENGTH
-
-#        dist_from_d0 = (EDGE_LENGTH * EDGE_LENGTH - d3 * d3 + d0 * d0) / (2 * EDGE_LENGTH)
-#        h = math.sqrt(d0 * d0 - dist_from_d0 * dist_from_d0)
-#        dp = h * math.tan(30 * RADIANS)        
-#        dist_from_d0 = dist_from_d0 + dp
-#        if dist_from_d0 > (d0 / 2):
-#            edge_angle = VERTEX_ANGLE / 2
-#            edge_angle = edge_angle + math.atan((dist_from_d0 - (d0 / 2)) / MID_EDGE_RADIUS) / RADIANS
-#        else:
-#            edge_angle = VERTEX_ANGLE / 2
-#            edge_angle = edge_angle - math.atan(((d0 / 2) - dist_from_d0) / MID_EDGE_RADIUS) / RADIANS
-#        edge_fraction = edge_angle / VERTEX_ANGLE
-        return edge_fraction
-
-    @staticmethod
-    def get_y_edge_fraction(d0, d1):
-        '''Document this!!!'''
-        dist_from_d0 = (EDGE_LENGTH * EDGE_LENGTH - d1 * d1 + d0 * d0) / (EDGE_LENGTH * 2)
-        edge_fraction = dist_from_d0 / EDGE_LENGTH
-        
-#        dist_from_d0 = (EDGE_LENGTH * EDGE_LENGTH - d1 * d1 + d0 * d0) / (EDGE_LENGTH * 2)
-#        h = math.sqrt(d0 * d0 - dist_from_d0 * dist_from_d0)        
-#        dp = h * math.tan(30 * RADIANS) 
-#        dist_from_d0 = dist_from_d0 + dp       
-#        dist_from_d0 = math.floor(dist_from_d0)
-#        if dist_from_d0 > (d0 / 2):
-#            edge_angle = VERTEX_ANGLE / 2
-#            edge_angle = edge_angle + math.atan((dist_from_d0 - (d0 / 2)) / MID_EDGE_RADIUS) / RADIANS
-#        else:
-#            edge_angle = VERTEX_ANGLE / 2
-#            edge_angle = edge_angle - math.atan(((d0 / 2) - dist_from_d0) / MID_EDGE_RADIUS) / RADIANS
-#        edge_fraction = edge_angle / VERTEX_ANGLE
+    def get_edge_fraction(d0, d1):
+        '''
+        Return the fraction of the vertex angle subtended by the angle between the
+        vertex, the center of the sphere, and the point on the icosahedron edge determined
+        by the distances d0 and d1 from the two ends of the vertex edge.
+        '''
+        a = d1
+        b = d0
+        c = EDGE_LENGTH
+        alpha = math.acos((sqr(b)+sqr(c)-sqr(a))/(2*b*c))
+        beta =  math.acos((sqr(a)+sqr(c)-sqr(b))/(2*a*c))
+        if beta <= math.pi/2:
+            h = a*math.sin(beta)
+        else:
+            h = a*math.cos(beta)
+        dp = h/math.tan(72*RADIANS)
+        d = b*math.cos(alpha) - dp
+        if d <= EDGE_LENGTH/2:
+            adp = math.atan2(EDGE_LENGTH/2 - d, MID_EDGE_RADIUS) / RADIANS
+            delta = VERTEX_ANGLE/2 - adp
+        else:
+            adp = math.atan2(d - EDGE_LENGTH/2, MID_EDGE_RADIUS) / RADIANS
+            delta = VERTEX_ANGLE/2 + adp
+        edge_fraction = delta / VERTEX_ANGLE
         return edge_fraction
         
     @staticmethod
@@ -1026,13 +1033,11 @@ class Rhomboid(object):
             cell_count = CELL_COUNT
             
         d0, d3 = Rhomboid.get_x_dist(clat, clng)
-#        out = 'd0=%s, d3=%s' % (d0, d3)
-#        logging.debug(out)
         if d3 < 1:
             return cell_count - 1;
         if d0 < 1:
             return 0;        
-        edge_fraction = Rhomboid.get_x_edge_fraction(d0, d3)
+        edge_fraction = Rhomboid.get_edge_fraction(d0, d3)
         cell_index = int(cell_count * edge_fraction)
         return cell_index
         
@@ -1043,13 +1048,11 @@ class Rhomboid(object):
             cell_count = CELL_COUNT
 
         d0, d1 = Rhomboid.get_y_dist(clat, clng)
-#        out = 'd0=%s, d1=%s' % (d0, d1)
-#        logging.debug(out)
         if d0 < 1:
             return 0
         if d1 < 1:
             return cell_count - 1
-        edge_fraction = Rhomboid.get_y_edge_fraction(d0, d1)
+        edge_fraction = Rhomboid.get_edge_fraction(d0, d1)
         cell_index = int(cell_count * edge_fraction)
         return cell_index
         
@@ -1083,7 +1086,7 @@ def get_cell_polygon(cell_key, cell_count = None):
 
 def get_cell_key_from_lat_lng(lat, lng, cell_count = None):
     '''Return the key for the cell in which the geographic latitude and longitude lie.'''
-    return Rhomboid(lat,lng, cell_count).key
+    return Rhomboid(lat, lng, cell_count).key
 
 def is_point_in_bounding_box(lat, lng, bb):
     '''
@@ -1165,6 +1168,55 @@ def get_oriented_bounding_box(from_ll, to_ll, orientation = 0):
 #    out = 'get_oriented_bounding_box() 5: bb: %s' % (str(bb))
 #    logging.debug(out)
     return bb
+    
+class CellPolygon(object):
+    def __init__(self, cellkey, polygon):
+        self._cellkey = cellkey
+        self._polygon = polygon
+        self._hashcode = hash((self._cellkey, self._polygon))
+        
+    def getcellkey(self): 
+        return self._cellkey
+    cellkey = property(getcellkey)
+        
+    def getpolygon(self):
+        return self._polygon
+    polygon = property(getpolygon)
+        
+    def __str__(self):
+        return str(self.__dict__)
+
+    def __eq__(cp1, cp2):
+        return cp1._hashcode == cp2._hashcode
+
+    def __hash__(self):
+        return self._hashcode
+
+    def __cmp__(self, other):
+        if self.cellkey > other.cellkey:
+            return 1
+        elif self.cellkey < other.cellkey:
+            return -1
+        return 0
+               
+def gettile(nwcorner, secorner, resolution, cell_count = CELL_COUNT):
+    cells = set()
+    north = nwcorner[1]
+    west = nwcorner[0]
+    south = secorner[1]
+    east = secorner[0]
+    lng = west
+    lat = north
+    while lng <= east:
+        while lat >= south:
+            cellkey = get_cell_key_from_lat_lng(lat, lng)
+            polygon = tuple(get_cell_polygon(cellkey))
+            cells.add(CellPolygon(cellkey, polygon))
+            lat -= resolution
+        lat = north
+        lng += resolution
+    return cells
+
     
 def get_tile(from_ll, to_ll, orientation, cell_count = None):
     '''
@@ -1628,6 +1680,7 @@ def lat_in_cell_test(cell_count = None):
     if cell_count == None:
         cell_count = CELL_COUNT
     lat = 90.0
+    cvl = lat90(VERTEX_LAT)
     cell_key = get_cell_key( (0, cell_count - 1, cell_count - 1) )
     if not (lat_in_cell(lat, cell_key, cell_count)):
         out = 'FAIL: lat_in_cell_test() lat = %s not in cell_key = %s with cell_count = %s' % (lat, cell_key, cell_count)
@@ -1640,14 +1693,14 @@ def lat_in_cell_test(cell_count = None):
             out = 'FAIL: lat_in_cell_test() lat = %s not in cell_key = %s with cell_count = %s' % (lat, cell_key, cell_count)
             logging.debug(out)
             return False
-    lat = -VERTEX_LAT
+    lat = -cvl
     for r in range(0,5):
         cell_key = get_cell_key( (r, 0, 0) )
         if not (lat_in_cell(lat, cell_key, cell_count)):
             out = 'FAIL: lat_in_cell_test() lat = %s not in cell_key = %s with cell_count = %s' % (lat, cell_key, cell_count)
             logging.debug(out)
             return False
-    lat = VERTEX_LAT
+    lat = cvl
     for r in range(5,10):
         cell_key = get_cell_key( (r, cell_count - 1, cell_count - 1) )
         if not (lat_in_cell(lat, cell_key, cell_count)):
@@ -1697,6 +1750,7 @@ def next_cell_east_test(cell_count = None):
         cell_count = CELL_COUNT
 
     lat = 90.0
+    cvl = lat90(VERTEX_LAT)
     for r in range(5):
         testkey = get_cell_key( (r, cell_count - 1, cell_count - 1) )
         resultkey = get_cell_key( ((r + 1) % 5, cell_count - 1, cell_count - 1) )
@@ -1716,7 +1770,7 @@ def next_cell_east_test(cell_count = None):
             out = 'FAIL: next_cell_east_test() %s not next cell east of %s at lat = %s. Should be %s' % (cell_east, testkey, lat, resultkey)
             logging.debug(out)
             return False
-    lat = -VERTEX_LAT
+    lat = -cvl
     for r in range(5):
         testkey = get_cell_key( (r, 0, 0) )
         resultkey = get_cell_key( (5 + (r % 5), 0, cell_count - 1) )
@@ -1726,7 +1780,7 @@ def next_cell_east_test(cell_count = None):
             out = 'FAIL: next_cell_east_test() %s not next cell east of %s at lat = %s. Should be %s' % (cell_east, testkey, lat, resultkey)
             logging.debug(out)
             return False
-    lat = VERTEX_LAT
+    lat = cvl
     for r in range(6, 10):
         testkey = get_cell_key( (r, cell_count - 1, cell_count - 1) )
         resultkey = get_cell_key( ((1 + r) % 5, 0, cell_count - 1) )
@@ -1863,10 +1917,32 @@ def get_bounding_box_test():
     logging.debug(out)
     
 def lat_crosses_circle_test():
-    get_nearest_lng_where_lat_crosses_circle(lat3, p0, p1)
+#    get_nearest_lng_where_lat_crosses_circle(lat3, p0, p1)
+    return True
     
-def test_suite():
-    lat_crosses_circle_test()
+def get_cell_key_from_lat_lng_test(cell_count):
+    test_pass = True
+    for n in range(10):
+        for x in range(cell_count):
+            for y in range(cell_count):
+                cell_polygon = Cell.polygon(n, x, y, cell_count)
+                vertex = -1
+                for point in cell_polygon:
+                    vertex = vertex + 1
+                    cell_key1 = get_cell_key((n, x, y))
+                    cell_key2 = get_cell_key_from_lat_lng(point[1], point[0], cell_count)
+                    if cell_key1 != cell_key2:
+                        out = 'FAIL: get_cell_key_from_lat_lng_test() cell_key = %s does not match cell_key_from_lat_long %s for vertex #%s point %s' % (cell_key1, cell_key2, vertex, point)
+                        logging.debug(out)
+                        test_pass = False
+                    else:
+                        out = 'PASS: get_cell_key_from_lat_lng_test() cell_key = %s matches cell_key_from_lat_long %s for vertex #%s point %s' % (cell_key1, cell_key2, vertex, point)
+                        logging.debug(out)
+    return test_pass
+                            
+def test_suite(cell_count):
+    get_cell_key_from_lat_lng_test(cell_count)
+#    lat_crosses_circle_test()
 #    get_bounding_box_test()
 #    lng_distance_test()
 #    lng_between_test()
@@ -1912,7 +1988,8 @@ if __name__ == '__main__':
     command = options.command
     
     if command == 'test':
-        test_suite()
+        cell_count = int(options.cell_count)
+        test_suite(cell_count)
     if command == 'get_tile':
         from_ll = map(float, options.from_ll.split(','))
         to_ll = map(float, options.to_ll.split(','))
