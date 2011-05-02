@@ -608,9 +608,48 @@ class Cell(object):
         return (lat_lng)
 
     def __init__(self, rhomboid_num, x_index, y_index):
-        self.rhomboid_num = rhomboid_num
-        self.x_index = x_index
-        self.y_index = y_index
+        self._rhomboid_num = rhomboid_num
+        self._x_index = x_index
+        self._y_index = y_index
+        self._hashcode = hash((self._rhomboid_num, self._x_index, self._y_index))
+
+
+    def getrnum(self):
+        return self._rhomboid_num
+    rhomboid_num = property(getrnum)
+
+    def getx(self):
+        return self._x_index
+    x_index = property(getx)
+
+    def gety(self):
+        return self._y_index
+    y_index = property(gety)
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def __eq__(cell1, cell2):
+        return cell1._hashcode == cell2._hashcode
+
+    def __hash__(self):
+        return self._hashcode
+
+    def __cmp__(self, other):
+        """Compares Cell objects by rhomboid num, then by x, then by y."""
+        if self.rhomboid_num > other.rhomboid_num:
+            return 1
+        elif self.rhomboid_num < other.rhomboid_num:
+            return -1
+        elif self.x_index > other.x_index:
+            return 1
+        elif self.x_index < other.x_index:
+            return -1
+        elif self.y_index > other.x_index:
+            return 1
+        elif self.y_index < other.y_index:
+            return -1
+        else: return 0
     
 class Face(object):
     '''
