@@ -1210,7 +1210,7 @@ def gettile(nwcorner, secorner, resolution, cell_count = CELL_COUNT):
     while lng <= east:
         while lat >= south:
             cellkey = get_cell_key_from_lat_lng(lat, lng)
-            polygon = tuple(get_cell_polygon(cellkey))
+            polygon = tuple([(float(x[0]), float(x[1])) for x in get_cell_polygon(cellkey)])
             cells.add(CellPolygon(cellkey, polygon))
             lat -= resolution
         lat = north
