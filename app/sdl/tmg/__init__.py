@@ -104,6 +104,9 @@ SIN_72 = -0.9510565162951536
 COS_VERTEX_LAT = 0.8944271909999159
 SIN_VERTEX_LAT = -0.4472135954999581
 
+LNG=0
+LAT=1
+
 PLACEMARK_1 = u"""                                                                                                                                          
     <Placemark>                                                                                                                                               
         <name>Cell</name>                                                                                                                              
@@ -227,7 +230,7 @@ def lat_lng_from_xyz((x, y, z)):
 def cartesian_distance(fromlat, fromlng, tolat, tolng, radius):
     '''
     Returns the Cartesian distance between two points given by
-    fromlat, fromlng) and (tolat, tolng) on a sphere of the given radius.
+    (fromlat, fromlng) and (tolat, tolng) on a sphere of the given radius.
     '''
     from_x, from_y, from_z = tuple(map( lambda x: radius*x, xyz_from_lat_lng((fromlat,fromlng))))
     to_x, to_y, to_z = tuple(map( lambda x: radius*x, xyz_from_lat_lng((tolat,tolng))))
@@ -255,7 +258,7 @@ def great_circle_intersection_xyz(p0, p1, p2, p3):
     '''
     Returns one of the two points on the sphere where two great circles, each defined by two Cartesian points,
     intersect. Result should be checked against expectation for hemisphere, and if not correct, take the 
-    antipode.
+    antipode. From http://geospatialmethods.org/spheres/GCIntersect.html#GCIGC.
     '''
     r = SEMI_MAJOR_AXIS
     x0 = p0[0]
@@ -283,10 +286,27 @@ def great_circle_intersection_xyz(p0, p1, p2, p3):
     lng = math.atan2(h*k,g*k)
     return (float(truncate(lat/RADIANS, DEGREE_DIGITS)),float(truncate(lng/RADIANS, DEGREE_DIGITS)))
 
+def convert(seq, t, rt):
+    '''Convert all members x of sequence seq to data type t and return as set type rt.'''
+    '''Example: 
+        convert(['1','2' ], float, tuple) should return
+        (1.0,2.0)
+    '''
+    return rt(map(lambda x: t(x), seq))
+
+def get_cell_centroid(polygon):
+    '''Intersect arcs from north to south and east to west.'''
+    p = map(lambda x: flip(convert(x, float, tuple)), polygon)
+    return great_circle_intersection_lat_lngs(p[0], p[2], p[1], p[len(p)-2])
+
+def arc_intersection(p0, p1, p2, p3):
+    bearing0 = Rhomboid.get_bearing(p0, p1)
+    bearing2 = Rhomboid.get_bearing(p2, p3)
+    
 def great_circle_intersection_lat_lngs(p0, p1, p2, p3):
     '''
     Returns the lat long of the point within the same hemisphere where two great circles, defined by 
-    two lat longs each, intersect.
+    two the arcs between the lat, lng points p0 and p1, and between p2 and p3 intersect.
     '''
     if p0[0] == -90.0:
         corrected_p0 = p1
@@ -349,6 +369,61 @@ class Cell(object):
         newlng = math.atan2(y1, x1) / RADIANS
         return (newlat, newlng)
            
+    @staticmethod
+    def alt_polygon(cell_key, cell_count = CELL_COUNT):
+        rhomboid_num, x, y = get_cell_attributes(cell_key)
+        polygon = Rhomboid.polygon(rhomboid_num)
+        p = map(lambda x: flip(convert(x, float, tuple)), polygon)
+        s_vertex = p[0]
+        e_vertex = p[1]
+        n_vertex = p[2]
+        w_vertex = p[len(polygon)-2]
+        cell_side = SURFACE_DISTANCE_BETWEEN_VERTEXES / cell_count
+        xdist = x * cell_side
+        ydist = y * cell_side
+        
+        bearing_se = Rhomboid.get_bearing(s_vertex, e_vertex)
+        se0 = Rhomboid.get_point_from_distance_at_bearing(s_vertex, xdist, bearing_se)
+        se1 = Rhomboid.get_point_from_distance_at_bearing(s_vertex, xdist+cell_side, bearing_se)
+        bearing_wn = Rhomboid.get_bearing(w_vertex, n_vertex)
+        wn0 = Rhomboid.get_point_from_distance_at_bearing(w_vertex, xdist, bearing_wn)
+        wn1 = Rhomboid.get_point_from_distance_at_bearing(w_vertex, xdist+cell_side, bearing_wn)
+        bearing_sw = Rhomboid.get_bearing(s_vertex, w_vertex)
+        sw0 = Rhomboid.get_point_from_distance_at_bearing(s_vertex, ydist, bearing_sw)
+        sw1 = Rhomboid.get_point_from_distance_at_bearing(s_vertex, ydist+cell_side, bearing_sw)
+        bearing_en = Rhomboid.get_bearing(e_vertex, n_vertex)
+        en0 = Rhomboid.get_point_from_distance_at_bearing(e_vertex, xdist, bearing_en)
+        en1 = Rhomboid.get_point_from_distance_at_bearing(e_vertex, xdist+cell_side, bearing_en)
+        if se0 == sw0:
+            cell_s_vertex = se0
+        else:
+            cell_s_vertex = great_circle_intersection_lat_lngs(se0, wn0, sw0, en0)
+        if wn1 == en1:
+            cell_n_vertex = wn1
+        else:
+            cell_n_vertex = great_circle_intersection_lat_lngs(se1, wn1, sw1, en1)
+        if se1 == en1:
+            cell_e_vertex = se1
+        else:
+            cell_e_vertex = great_circle_intersection_lat_lngs(se1, wn1, sw0, en0)
+        if sw1 == wn0:
+            cell_w_vertex = sw1
+        else:
+            cell_w_vertex = great_circle_intersection_lat_lngs(se0, wn0, sw1, en1)
+        
+        if cell_s_vertex[0] == -90:
+            p0 = (cell_s_vertex[0],cell_e_vertex[1])
+            p1 = (cell_s_vertex[0],cell_w_vertex[1])
+            '''S-out, E, N, W, S-in'''
+            return [flip(truncate_lat_lng(p0)), flip(truncate_lat_lng(cell_e_vertex)), flip(truncate_lat_lng(cell_n_vertex)), flip(truncate_lat_lng(cell_w_vertex)), flip(truncate_lat_lng(p1))]
+        elif cell_n_vertex[0] == 90:
+            p2 = (90.0,cell_e_vertex[1])
+            p3 = (90.0,cell_w_vertex[1])
+            '''S, E, N-in, N-out, W, S'''
+            return [flip(truncate_lat_lng(cell_s_vertex)), flip(truncate_lat_lng(cell_e_vertex)), flip(truncate_lat_lng(p2)), flip(truncate_lat_lng(p3)), flip(truncate_lat_lng(cell_w_vertex)), flip(truncate_lat_lng(cell_s_vertex))]
+        '''S, E, N, W, S'''
+        return [flip(truncate_lat_lng(cell_s_vertex)), flip(truncate_lat_lng(cell_e_vertex)), flip(truncate_lat_lng(cell_n_vertex)), flip(truncate_lat_lng(cell_w_vertex)), flip(truncate_lat_lng(cell_s_vertex))]
+
     @staticmethod
     def polygon(rhomboid_num, x_index, y_index, cell_count = None):
         '''
@@ -505,26 +580,17 @@ class Cell(object):
             s_vertex = great_circle_intersection_lat_lngs(ew0,en0, we0,wn0)
 #            out = '6) Whole cell in N triangle n_vertex=%s' % (str(n_vertex))
 #            logging.debug(out)
-
-#        out = 's_vertex=%s n_vertex=%s e_vertex=%s w_vertex=%s' % (s_vertex, n_vertex, e_vertex, w_vertex)
-#        logging.debug(out)
                  
         if s_vertex[0] == -90:
             p0 = (s_vertex[0],e_vertex[1])
             p1 = (s_vertex[0],w_vertex[1])
-#            out = 'S half sv=-90 p0=%s p1=%s' % (p0, p1)
-#            logging.debug(out)
             '''S-out, E, N, W, S-in'''
             return [flip(truncate_lat_lng(p0)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(n_vertex)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(p1))]
         elif n_vertex[0] == 90:
             p2 = (90.0,e_vertex[1])
             p3 = (90.0,w_vertex[1])
-#            out = 'S half nv=+90: p2=%s p3=%s' % (p2, p3)
-#            logging.debug(out)
             '''S, E, N-in, N-out, W, S'''
             return [flip(truncate_lat_lng(s_vertex)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(p2)), flip(truncate_lat_lng(p3)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(s_vertex))]
-#        out = 'S half sv<>-90 nv<>90 s_vertex=%s' % (str(s_vertex))
-#        logging.debug(out)
         '''S, E, N, W, S'''
         return [flip(truncate_lat_lng(s_vertex)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(n_vertex)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(s_vertex))]
         
@@ -569,8 +635,9 @@ class Cell(object):
         placemarks = []
         for x in range(cell_count):
             for y in range(cell_count):
-                polygon = Cell.polygon(rhomboid_num, x, y, cell_count)                                        
                 key = get_cell_key( (rhomboid_num, x, y) )
+                polygon = Cell.alt_polygon(key, cell_count)                                        
+#                polygon = Cell.polygon(rhomboid_num, x, y, cell_count)                                        
 #                if key == '5-0-8' or key == '5-0-7':
 #                    out = 'createKmlMesh(): key = %s polygon = %s' % (key, polygon)
 #                    logging.debug(out)
@@ -666,7 +733,7 @@ class Cell(object):
     def __str__(self):
         return str(self.__dict__)
 
-    def __eq__(cell1, cell2):
+    def __eq__(self, cell1, cell2):
         return cell1._hashcode == cell2._hashcode
 
     def __hash__(self):
@@ -884,6 +951,25 @@ class Rhomboid(object):
         return Rhomboid.get_bearing(start_lat_lng, end_lat_lng, rhomboid_num)
 
     @staticmethod
+    def polygon(rhomboid_num):
+        s_vertex = Rhomboid.south_lat_lng(rhomboid_num)
+        n_vertex = Rhomboid.north_lat_lng(rhomboid_num)
+        e_vertex = Rhomboid.east_lat_lng(rhomboid_num)
+        w_vertex = Rhomboid.west_lat_lng(rhomboid_num)
+        if s_vertex[0] == -90:
+            p0 = (s_vertex[0],e_vertex[1])
+            p1 = (s_vertex[0],w_vertex[1])
+            '''S-out, E, N, W, S-in'''
+            return [flip(truncate_lat_lng(p0)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(n_vertex)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(p1))]
+        elif n_vertex[0] == 90:
+            p2 = (90.0,e_vertex[1])
+            p3 = (90.0,w_vertex[1])
+            '''S, E, N-in, N-out, W, S'''
+            return [flip(truncate_lat_lng(s_vertex)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(p2)), flip(truncate_lat_lng(p3)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(s_vertex))]
+        '''S, E, N, W, S'''
+        return [flip(truncate_lat_lng(s_vertex)), flip(truncate_lat_lng(e_vertex)), flip(truncate_lat_lng(n_vertex)), flip(truncate_lat_lng(w_vertex)), flip(truncate_lat_lng(s_vertex))]
+
+    @staticmethod
     def south_lat_lng(rhomboid_num):
         '''Document this!!!'''
         lat = -lat90(VERTEX_LAT)
@@ -970,36 +1056,6 @@ class Rhomboid(object):
         return facet
 
     @staticmethod
-    def get_x_dist(clat, clng):
-        '''Document this!!!'''
-        cface = Face.get_face_number(clat, clng)
-        cvl = lat90(VERTEX_LAT)
-        if cface == 5:
-            d3 = cartesian_distance(clat, clng, cvl, 36, SEMI_MAJOR_AXIS)
-            d0 = cartesian_distance(clat, clng, -cvl, 0, SEMI_MAJOR_AXIS)
-        else:
-            d0 = cartesian_distance(clat, clng, cvl, -36, SEMI_MAJOR_AXIS)
-            d3 = cartesian_distance(clat, clng, 90, 0, SEMI_MAJOR_AXIS)
-        return (d0, d3)
-
-    @staticmethod
-    def get_y_dist(clat, clng):
-        '''Document this!!!'''
-        cface = Face.get_face_number(clat, clng)
-        cvl = lat90(VERTEX_LAT)
-        if cface == 5:
-            d0 = cartesian_distance(clat, clng, -cvl, 0, SEMI_MAJOR_AXIS)
-            d0 = math.floor(d0)
-            d1 = cartesian_distance(clat, clng, cvl, -36, SEMI_MAJOR_AXIS)
-            d1 = math.floor(d1)
-        else:
-            d0 = cartesian_distance(clat, clng, cvl, 36, SEMI_MAJOR_AXIS)
-            d0 = math.floor(d0)
-            d1 = cartesian_distance(clat, clng, 90, 0, SEMI_MAJOR_AXIS)
-            d1 = math.floor(d1)
-        return (d0, d1)
-
-    @staticmethod
     def get_edge_fraction(d0, d1):
         '''
         Return the fraction of the vertex angle subtended by the angle between the
@@ -1011,10 +1067,11 @@ class Rhomboid(object):
         c = EDGE_LENGTH
         alpha = math.acos((sqr(b)+sqr(c)-sqr(a))/(2*b*c))
         beta =  math.acos((sqr(a)+sqr(c)-sqr(b))/(2*a*c))
-        if beta <= math.pi/2:
-            h = a*math.sin(beta)
-        else:
-            h = a*math.cos(beta)
+        h = a*math.sin(beta)
+#        if beta <= math.pi/2:
+#            h = a*math.sin(beta)
+#        else:
+#            h = math.fabs(a*math.cos(beta))
         dp = h/math.tan(72*RADIANS)
         d = b*math.cos(alpha) - dp
         if d <= EDGE_LENGTH/2:
@@ -1025,45 +1082,13 @@ class Rhomboid(object):
             delta = VERTEX_ANGLE/2 + adp
         edge_fraction = delta / VERTEX_ANGLE
         return edge_fraction
-        
-    @staticmethod
-    def calc_x_index(clat, clng, cell_count = None):
-        '''Document this!!! Include conventions for points that lie on boundaries.'''
-        if cell_count == None:
-            cell_count = CELL_COUNT
-            
-        d0, d3 = Rhomboid.get_x_dist(clat, clng)
-        if d3 < 1:
-            return cell_count - 1;
-        if d0 < 1:
-            return 0;        
-        edge_fraction = Rhomboid.get_edge_fraction(d0, d3)
-        cell_index = int(cell_count * edge_fraction)
-        return cell_index
-        
-    @staticmethod
-    def calc_y_index(clat, clng, cell_count = None):
-        '''Document this!!! Include conventions for points that lie on boundaries.'''
-        if cell_count == None:
-            cell_count = CELL_COUNT
 
-        d0, d1 = Rhomboid.get_y_dist(clat, clng)
-        if d0 < 1:
-            return 0
-        if d1 < 1:
-            return cell_count - 1
-        edge_fraction = Rhomboid.get_edge_fraction(d0, d1)
-        cell_index = int(cell_count * edge_fraction)
-        return cell_index
         
     def __init__(self, lat, lng, cell_count = None):
         self.face = Face(lat, lng)
         self.clat = self.canonical_lat(self.face)
         self.clng = self.canonical_lng(self.face)
         self.num = self.calc_num(self.face)
-        self.x = self.calc_x_index(self.clat, self.clng, cell_count)
-        self.y = self.calc_y_index(self.clat, self.clng, cell_count)
-        self.key = get_cell_key( (self.num, self.x, self.y) )
 
 def cell_side_length(cell_count = None):
     '''
@@ -1086,7 +1111,49 @@ def get_cell_polygon(cell_key, cell_count = None):
 
 def get_cell_key_from_lat_lng(lat, lng, cell_count = None):
     '''Return the key for the cell in which the geographic latitude and longitude lie.'''
-    return Rhomboid(lat, lng, cell_count).key
+    if cell_count == None:
+        cell_count = CELL_COUNT
+    rhomboid_num = Rhomboid(lat, lng, cell_count).num
+    polygon = Cell.polygon(rhomboid_num, 0, 0, 1)
+    '''
+    For South vertex at -90 latitude:
+        S-out, E, N, W, S-in
+    For North vertex at 90 latitude:
+        S, E, N-in, N-out, W, S
+    For all other cells:
+        S, E, N, W, S
+    '''
+    s = float(polygon[0][1])
+    e = lng180(float(polygon[1][0]))
+    n = float(polygon[2][1])
+    w = lng180(float(polygon[len(polygon)-2][0]))
+    svertex = polygon[0]
+    evertex = polygon[1]
+    nvertex = polygon[2]
+    wvertex = polygon[len(polygon)-2]
+
+    d0 = cartesian_distance(lat, lng, float(svertex[LAT]), lng180(svertex[LNG]), SEMI_MAJOR_AXIS)
+    d1 = cartesian_distance(lat, lng, float(evertex[LAT]), lng180(evertex[LNG]), SEMI_MAJOR_AXIS)
+    d2 = cartesian_distance(lat, lng, float(wvertex[LAT]), lng180(wvertex[LNG]), SEMI_MAJOR_AXIS)
+
+    xindex = 0
+    yindex = 0
+        
+    if d0 < 1:
+        xindex = 0
+        yindex = 0
+    else:
+        if d1 < 1:
+            xindex = cell_count - 1
+        else:
+            edge_fraction = Rhomboid.get_edge_fraction(d0, d1)
+            xindex = int(cell_count * edge_fraction)
+        if d2 < 1:
+            yindex = cell_count - 1
+        else:   
+            edge_fraction = Rhomboid.get_edge_fraction(d0, d2)
+            yindex = int(cell_count * edge_fraction)
+    return get_cell_key((rhomboid_num, xindex, yindex))
 
 def is_point_in_bounding_box(lat, lng, bb):
     '''
@@ -1186,7 +1253,7 @@ class CellPolygon(object):
     def __str__(self):
         return str(self.__dict__)
 
-    def __eq__(cp1, cp2):
+    def __eq__(self, cp1, cp2):
         return cp1._hashcode == cp2._hashcode
 
     def __hash__(self):
@@ -1199,6 +1266,29 @@ class CellPolygon(object):
             return -1
         return 0
                
+def get_rect_tile(nwcorner, secorner, resolution):
+    cells = set()
+    north = nwcorner[1]
+    west = nwcorner[0]
+    south = secorner[1]
+    east = secorner[0]
+    lng = west
+    lat = north
+    xindex = 0
+    while lng <= east:
+        yindex = 0
+        while lat >= south:
+            cellkey = str(xindex)+'-'+str(yindex)
+            polygon = ((lng, lat), (lng+resolution, lat), (lng+resolution, lat-resolution), (lng, lat-resolution), (lng,lat))
+#            polygon = tuple([(float(x[0]), float(x[1])) for x in get_cell_polygon(cellkey)])
+            cells.add(CellPolygon(cellkey, polygon))
+            lat -= resolution
+            yindex += 1
+        lat = north
+        lng += resolution
+        xindex += 1
+    return cells
+
 def gettile(nwcorner, secorner, resolution, cell_count = CELL_COUNT):
     cells = set()
     north = nwcorner[1]
@@ -1216,7 +1306,6 @@ def gettile(nwcorner, secorner, resolution, cell_count = CELL_COUNT):
         lat = north
         lng += resolution
     return cells
-
     
 def get_tile(from_ll, to_ll, orientation, cell_count = None):
     '''
@@ -1843,6 +1932,65 @@ def next_cell_south_test(cell_count = None):
     logging.debug(out)
     return True
 
+def lng_midpoint(west, east):
+    '''Assumes direction is west to east.'''
+    w = float(lng180(west))
+    e = float(lng180(east))
+    if equal_within_tolerance (e, w, DEGREE_DIGITS):
+        return w    
+    if e > w:
+        if w == 180:
+            if e == 180:
+                return 0
+            return lng180(str(-180+(e+180)/2))
+        return lng180(str(w + (e - w)/2))
+    if w == 180:
+            return lng180(str(-180+(e+180)/2))        
+    return lng180(str(w + (-w + 180 + e + 180)/2))
+
+def lng_midpoint_test():
+    testpasses = True
+    x = 0.0
+    while x < 180:
+        west = -x
+        east = x
+        midpoint = lng_midpoint(west, east)
+        if midpoint != 0:
+            out = 'FAIL: lng_midpoint_test() Test #1: midpoint %s and %s should be 0, not %s' % (west, east, midpoint)
+            midpoint = lng_midpoint(west, east)
+            logging.debug(out)
+            testpasses = False
+        west = 0.0
+        east = x
+        midpoint = lng_midpoint(west, east)
+        if midpoint != x/2:
+            out = 'FAIL: lng_midpoint_test() Test #2: midpoint of %s and %s should not be %s' % (west, east, midpoint)
+            midpoint = lng_midpoint(west, east)
+            logging.debug(out)
+            testpasses = False
+        west = x
+        east = 0.0
+        midpoint = lng_midpoint(west, east)
+        if x == 0.0:
+            testvalue = 0.0
+        else:
+            testvalue = lng180(str(x + (360 - x)/2))
+        if midpoint != testvalue:
+            out = 'FAIL: lng_midpoint_test() Test #3: midpoint of %s and %s should not be %s' % (west, east, midpoint)
+            midpoint = lng_midpoint(west, east)
+            logging.debug(out)
+            testpasses = False
+        west = -180.0
+        east = x
+        midpoint = lng_midpoint(west, east)
+        if midpoint != lng180(str(-180 + (x+180)/2)):
+            out = 'FAIL: lng_midpoint_test() Test #4: midpoint of %s and %s should not be %s' % (west, east, midpoint)
+            midpoint = lng_midpoint(west, east)
+            logging.debug(out)
+            testpasses = False
+        x += 10.0
+    return testpasses
+        
 def lng_between_test():
     '''Test 1: Whole earth'''
     w = 0
@@ -1920,28 +2068,132 @@ def lat_crosses_circle_test():
 #    get_nearest_lng_where_lat_crosses_circle(lat3, p0, p1)
     return True
     
-def get_cell_key_from_lat_lng_test(cell_count):
-    test_pass = True
-    for n in range(10):
+def get_specific_cell_key_test(cell_count):
+    testpasses = True
+    rhomboid_num = 0
+    x = 0
+    y = 3
+    orig_cell_key = get_cell_key((rhomboid_num,x,y))
+    polygon = Cell.polygon(rhomboid_num, x, y, cell_count)
+#0-0-3 [('-26.4942941', '13.4416153'), 
+#       ('-18.4669970', '30.3792205'), 
+#       ('-36.0000000', '42.4237884'), 
+#       ('-36.0000000', '26.5650512'), 
+#       ('-26.4942941', '13.4416153')]
+    
+#    svertex = polygon[0]
+#    evertex = polygon[1]
+#    nvertex = polygon[2]
+#    wvertex = polygon[len(polygon)-2]
+#    lngcenter = lng_midpoint(wvertex[0], evertex[0])
+#    latcenter = lat90(svertex[1]) + (lat90(nvertex[1])-lat90(svertex[1]))/2
+    latcenter, lngcenter = get_cell_centroid(polygon)
+    test_cell_key = get_cell_key_from_lat_lng(latcenter, lngcenter, cell_count)
+    if orig_cell_key != test_cell_key:
+        out = 'FAIL: get_cell_key_test() orig_cell_key = %s does not match test_cell_key %s at center (lat=%s, lng=%s)' % (orig_cell_key, test_cell_key, latcenter, lngcenter)
+        logging.debug(out)
+        test_pass = False
+    else:
+        out = 'PASS: get_cell_key_test() orig_cell_key = %s matches test_cell_key %s at center (lat=%s, lng=%s)' % (orig_cell_key, test_cell_key, latcenter, lngcenter)
+        logging.debug(out)
+        test_pass = False
+
+def great_circle_intersection_test():
+#    p0 = (13.4416153, -26.4942941)
+#    p1 = (30.3792205, -18.466997) 
+#    p2 = (42.423788399999999, -36)
+#    p3 = (26.565051199999999, -36)
+    polygon = Cell.polygon(0, 1, 1, 2)
+    p = map(lambda x: flip(convert(x, float, tuple)), polygon)
+    p0 = p[0]
+    p1 = p[1]
+    p2 = p[2]
+    p3 = p[len(polygon)-2]
+
+#    cvl = VERTEX_LAT
+#    p0 = (-cvl, 0)
+#    p1 = (cvl, 36) 
+#    p2 = (90, -36)
+#    p3 = (cvl, -36)
+    
+    bearing02 = Rhomboid.get_bearing(p0, p2)
+    bearing13 = Rhomboid.get_bearing(p1, p3)
+    
+    intersection = great_circle_intersection_lat_lngs(p0,p2,p1,p3)
+    rs = (-26.5650512, 0)
+    rn = (90, 36)
+    re = (26.5650512, 36)
+    rw = (26.5650512, -36)
+
+    bearing_si = Rhomboid.get_bearing(rs, intersection)
+    bearing_ei = Rhomboid.get_bearing(re, intersection)
+    bearing_wi = Rhomboid.get_bearing(rw, intersection)
+    
+    d0 = cartesian_distance(rs[0], rs[1], intersection[0], intersection[1], SEMI_MAJOR_AXIS)
+    d1 = cartesian_distance(re[0], re[1], intersection[0], intersection[1], SEMI_MAJOR_AXIS)
+    d2 = cartesian_distance(rw[0], rw[1], intersection[0], intersection[1], SEMI_MAJOR_AXIS)    
+    
+    return intersection
+
+def get_cell_key_test(cell_count):
+    testpasses = True
+    for rhomboid_num in range(10):
         for x in range(cell_count):
             for y in range(cell_count):
-                cell_polygon = Cell.polygon(n, x, y, cell_count)
-                vertex = -1
-                for point in cell_polygon:
-                    vertex = vertex + 1
-                    cell_key1 = get_cell_key((n, x, y))
-                    cell_key2 = get_cell_key_from_lat_lng(point[1], point[0], cell_count)
-                    if cell_key1 != cell_key2:
-                        out = 'FAIL: get_cell_key_from_lat_lng_test() cell_key = %s does not match cell_key_from_lat_long %s for vertex #%s point %s' % (cell_key1, cell_key2, vertex, point)
-                        logging.debug(out)
-                        test_pass = False
-                    else:
-                        out = 'PASS: get_cell_key_from_lat_lng_test() cell_key = %s matches cell_key_from_lat_long %s for vertex #%s point %s' % (cell_key1, cell_key2, vertex, point)
-                        logging.debug(out)
-    return test_pass
-                            
+                orig_cell_key = get_cell_key((rhomboid_num,x,y))
+                polygon = Cell.polygon(rhomboid_num, x, y, cell_count)
+                
+#0-0-3 [('-26.4942941', '13.4416153'), 
+#       ('-18.4669970', '30.3792205'), 
+#       ('-36.0000000', '42.4237884'), 
+#       ('-36.0000000', '26.5650512'), 
+#       ('-26.4942941', '13.4416153')]
+                
+                svertex = polygon[0]
+                evertex = polygon[1]
+                nvertex = polygon[2]
+                wvertex = polygon[len(polygon)-2]
+                lngcenter = lng_midpoint(float(wvertex[0]), float(evertex[0]))
+                latcenter = lat90(svertex[1]) + (lat90(nvertex[1])-lat90(svertex[1]))/2
+                test_cell_key = get_cell_key_from_lat_lng(latcenter, lngcenter, cell_count)
+                if orig_cell_key != test_cell_key:
+                    out = 'FAIL: get_cell_key_test() orig_cell_key = %s does not match test_cell_key %s at center (lat=%s, lng=%s)' % (orig_cell_key, test_cell_key, latcenter, lngcenter)
+                    logging.debug(out)
+                    testpasses = False
+                else:
+                    out = 'PASS: get_cell_key_test() orig_cell_key = %s matches test_cell_key %s at center (lat=%s, lng=%s)' % (orig_cell_key, test_cell_key, latcenter, lngcenter)
+                    logging.debug(out)
+    return testpasses
+
+def get_cell_polygon_test(cell_count=CELL_COUNT):
+    testpasses = True
+    for rhomboid_num in range(10):
+        for x in range(cell_count):
+            for y in range(cell_count):
+                orig_cell_key = get_cell_key((rhomboid_num,x,y))
+                polygon = Cell.alt_polygon(orig_cell_key, cell_count)
+        p = map(lambda x: flip(convert(x, float, tuple)), Rhomboid.polygon(rhomboid_num))
+        out = 'INFO: get_rhomboid_polygon_test() polygon(%s) = %s' % (rhomboid_num, p)
+        logging.debug(out)        
+    return testpasses
+
+def get_rhomboid_polygon_test():
+    testpasses = True
+    for rhomboid_num in range(10):
+        p = map(lambda x: flip(convert(x, float, tuple)), Rhomboid.polygon(rhomboid_num))
+        out = 'INFO: get_rhomboid_polygon_test() polygon(%s) = %s' % (rhomboid_num, p)
+        logging.debug(out)        
+    return testpasses
+
 def test_suite(cell_count):
-    get_cell_key_from_lat_lng_test(cell_count)
+    testspass = True
+#    testpass = get_rhomboid_polygon_test()
+    testpass = get_cell_polygon_test(cell_count)
+#    testpass = great_circle_intersection_test()
+#    testspass = testspass and lng_midpoint_test()
+#    testspass = testspass and get_specific_cell_key_test(cell_count)
+#    get_cell_key_test(cell_count)
+#    get_cell_key_from_lat_lng_test(cell_count)
 #    lat_crosses_circle_test()
 #    get_bounding_box_test()
 #    lng_distance_test()
@@ -1950,6 +2202,7 @@ def test_suite(cell_count):
 #    lng_in_cell_test()
 #    next_cell_east_test()
 #    next_cell_south_test()
+    return testspass
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)    
@@ -1989,7 +2242,7 @@ if __name__ == '__main__':
     
     if command == 'test':
         cell_count = int(options.cell_count)
-        test_suite(cell_count)
+        testpasses = test_suite(cell_count)
     if command == 'get_tile':
         from_ll = map(float, options.from_ll.split(','))
         to_ll = map(float, options.to_ll.split(','))

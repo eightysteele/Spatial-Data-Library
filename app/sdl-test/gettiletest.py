@@ -37,7 +37,7 @@ class GetTileTest(unittest.TestCase):
         west = 30
         south = -30
         east = 60
-        resolution = 0.0083333
+        resolution = 10
         nwcorner = (west, north)
         secorner = (east, south)
         cells = gettile(nwcorner, secorner, resolution, 3)

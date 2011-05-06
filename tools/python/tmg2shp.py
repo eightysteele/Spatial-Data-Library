@@ -30,6 +30,7 @@ fixpath.fix_sys_path()
 
 from optparse import OptionParser
 from sdl.tmg import gettile
+from sdl.tmg import get_rect_tile
 import shapefile
 
 if __name__ == '__main__':
@@ -66,12 +67,12 @@ if __name__ == '__main__':
     cell_count = int(options.cell_count)
     filename = options.filename
 
-
     w = shapefile.Writer(shapefile.POLYGON)
     w.field('CellKey','C','255')    
-    for x in gettile((west, north), (east, south), resolution, cell_count):
+#    for x in gettile((west, north), (east, south), resolution, cell_count):
+    for x in get_rect_tile((west, north), (east, south), resolution):
         key = x.cellkey
         parts = [list(x) for x in x.polygon]
         w.poly(parts=[parts])
         w.record(CellKey=key)
-        w.save(filename)
+    w.save(filename)
