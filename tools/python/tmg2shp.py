@@ -64,7 +64,7 @@ if __name__ == '__main__':
     west = float(options.west)
     east = float(options.east)
     resolution = float(options.resolution)
-    cell_count = int(options.cell_count)
+    #cell_count = int(options.cell_count)
     filename = options.filename
 
     w = shapefile.Writer(shapefile.POLYGON)
@@ -76,3 +76,8 @@ if __name__ == '__main__':
         w.poly(parts=[parts])
         w.record(CellKey=key)
     w.save(filename)
+
+    # prj = open("%s.prj" % filename, "w")
+    # epsg = 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]'
+    # prj.write(epsg)
+    # prj.close()
