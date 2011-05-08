@@ -13,7 +13,7 @@ handlers:
   login: admin
 
 - url: /api/.*
-  script: app.py
+  script: api.py
   
 - url: /github/.*
   script: app.py
