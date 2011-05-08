@@ -38,17 +38,7 @@ def load(csvfile, couchdb_url):
             '_id': row['CellKey'],
             'coords': [], # TODO
             'vars': {
-                row['RID'].split('_')[0]: {
-                    'value': cell_value,            
-                    'within_vals': {
-                        'within_1': within_list(cell_value, 1),
-                        'within_2': within_list(cell_value, 2),
-                        'within_3': within_list(cell_value, 3),
-                        'within_4': within_list(cell_value, 4),
-                        'within_5': within_list(cell_value, 5),
-                        'within_10': within_list(cell_value, 10)
-                        }
-                    }
+                row['RID'].split('_')[0]: float(row['avg_Band1'])
                 }
             }
         sdl.save(doc)
