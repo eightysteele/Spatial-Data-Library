@@ -158,7 +158,7 @@ class CellValuesHandler(webapp.RequestHandler):
             return
 
         cell_keys = set([x.strip() for x in k.split(',')])
-        variable_names = set([v.strip() for x in v.split(',')])
+        variable_names = set([x.strip() for x in v.split(',')])
         if not cell_keys or not variable_names:
             self.error(404)
             return
