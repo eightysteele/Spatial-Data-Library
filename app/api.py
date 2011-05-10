@@ -153,6 +153,7 @@ class CellValuesHandler(webapp.RequestHandler):
         logging.info('POSTING')
         k = self.request.get('k', None) 
         v = self.request.get('v', None)
+        c = 'true' == self.request.get('c')
         if not k or not v:
             self.error(404)
             return
@@ -170,8 +171,11 @@ class CellValuesHandler(webapp.RequestHandler):
             varvals = simplejson.loads(cell.varvals)
             for name in variable_names:
                 requested_varvals[name] = varvals.get(name)
-            results.append({'cell-key': cell.key().name(), 
-                            'cell-values': requested_varvals})
+                result = {'cell-key': cell.key().name(), 
+                          'cell-values': requested_varvals}
+                if c:
+                    result['cell-coords'] = simplejson.loads(cell.coords)
+            results.append(result)
         json = simplejson.dumps(results)
         self.response.headers["Content-Type"] = "application/json"
         self.response.out.write(json)
