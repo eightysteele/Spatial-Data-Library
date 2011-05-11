@@ -57,11 +57,13 @@ class Variable(db.Expando):
 class CellValuesHandler(webapp.RequestHandler):
     """Gets cell values.
 
-    Gets cell values for a list of variables that correspond to a list of 
-    coordinates (or cell keys).
-    
+    URL parameters:
+        k - Comma separated list of cell keys.
+        xy - Pipe separated list of comma separated lon/lat pairs.
+        c - Is true if cell coordinates are wanted.
+
     Example:
-        GET /api/cells/values?xy=1,2|7,3&v=bio1,bio2
+        GET /api/cells/values?xy=1,2|7,3&v=bio1,bio2&c=true
 
     Returns:
     [
@@ -79,36 +81,41 @@ class CellValuesHandler(webapp.RequestHandler):
     """
 
     @staticmethod
-    def fromcache(cell_keys):
-        return set([memcache.get(x) for x in cell_keys if memcache.get(x)])
-
-    @staticmethod
     def fromds(cell_keys):
-        return set([x for x in CouchDbCell.get_by_key_name(cell_keys) if x])
+        cells = {}
+        entities = CouchDbCell.get_by_key_name(cell_keys)
+        for x in entities:
+            if x:
+                cells[x.key().name()] = x
+        return cells
 
     @staticmethod
     def fromcouchdb(cell_keys):
-        results = set()
-        url = "http://ec2-75-101-194-134.compute-1.amazonaws.com:5984/sdl/_design/api/_view/cell-values"        
+        results = {}
+        #url = "http://ec2-75-101-194-134.compute-1.amazonaws.com:5984/sdl/_design/api/_view/cell-values"        
+        url = "http://127.0.0.1:5983/sdl/_design/api/_view/cell-values"        
         payload = simplejson.dumps({'keys': list(cell_keys)})
         logging.info('PAYLOAD: ' + payload)
         method = urlfetch.POST
         headers = {"Content-Type":"application/json"}
         result = urlfetch.fetch(url, payload=payload, method=method, headers=headers)
-        if result.status_code == 200:
-            logging.info('Content: ' + result.content)
-            rows = simplejson.loads(result.content).get('rows')
-            logging.info(rows)
-            for row in rows:
-                key = row.get('key')
-                value = row.get('value')
-                rev = value.get('rev')
-                coords = simplejson.dumps(value.get('coords'))
-                varvals = simplejson.dumps(value.get('varvals'))
-                results.add(CouchDbCell(
-                        key_name=key, rev=rev, coords=coords, varvals=varvals))                    
-        else:
+
+        if result.status_code != 200:
             logging.error(result.status_code)
+            return results
+
+        logging.info('Content: ' + result.content)
+        rows = simplejson.loads(result.content).get('rows')
+        logging.info(rows)
+        for row in rows:
+            key = row.get('key')
+            value = row.get('value')
+            rev = value.get('rev')
+            coords = simplejson.dumps(value.get('coords'))
+            varvals = simplejson.dumps(value.get('varvals'))
+            results[key] = CouchDbCell(
+                key_name=key, rev=rev, coords=coords, varvals=varvals)
+
         return results
 
     @classmethod
@@ -117,34 +124,33 @@ class CellValuesHandler(webapp.RequestHandler):
         
         cell_keys - set of CellValue key_name strings.
         """
-        cells = set()
+        cells = {}
         
         # Checks cache:
-        cached = cls.fromcache(cell_keys)
+        cached = memcache.get_multi(cell_keys)
         cells.update(cached)
-        cell_keys = cell_keys.difference(set([x.key().name() for x in cached]))
+        cell_keys = cell_keys.difference(cached.keys())
+
+        cachecells = False
 
         # Checks datastore:
         if len(cell_keys) > 0:
+            cachecells = True
             stored = cls.fromds(cell_keys)
             cells.update(stored)
-            key_names = set()
-            for cell in stored:
-                key_name = cell.key().name()
-                key_names.add(key_name)
-                memcache.add(key_name, cell)                
-            cell_keys = cell_keys.difference(key_names)
+            cell_keys = cell_keys.difference(stored.keys())
             
         # Checks CouchDB:
         if len(cell_keys) > 0:
+            cachecells = True
             couched = cls.fromcouchdb(cell_keys)
             cells.update(couched)
-            db.put(couched)
-            for cell in couched:
-                memcache.add(cell.key().name(), cell)
+            db.put(couched.values())
+            
+        if cachecells:
+            memcache.set_multi(cells)                        
 
         return cells
-        
 
     def get(self):
         return self.post()
@@ -166,12 +172,13 @@ class CellValuesHandler(webapp.RequestHandler):
         
         cells = CellValuesHandler.getcells(cell_keys)        
         results = []
-        for cell in cells:
+        for cellkey in cells.keys():
+            cell = cells.get(cellkey)
             requested_varvals = {}
             varvals = simplejson.loads(cell.varvals)
             for name in variable_names:
                 requested_varvals[name] = varvals.get(name)
-                result = {'cell-key': cell.key().name(), 
+                result = {'cell-key': cellkey, 
                           'cell-values': requested_varvals}
                 if c:
                     result['cell-coords'] = simplejson.loads(cell.coords)
