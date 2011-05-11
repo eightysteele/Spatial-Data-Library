@@ -24,6 +24,9 @@ import logging
 import os
 import simplejson
 
+from google.appengine.dist import use_library
+use_library('django', '1.2')
+
 COUCHDB_HOST = 'http://ec2-184-73-71-48.compute-1.amazonaws.com'
 COUCHDB_PORT = 5984
 COUCHDB_DATABASE = 'sdl'
