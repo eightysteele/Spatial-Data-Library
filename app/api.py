@@ -24,6 +24,14 @@ import logging
 import os
 import simplejson
 
+COUCHDB_HOST = 'http://ec2-184-73-71-48.compute-1.amazonaws.com'
+COUCHDB_PORT = 5984
+COUCHDB_DATABASE = 'sdl'
+COUCHDB_DESIGN = 'api'
+COUCHDB_VIEW = 'cell-values'
+COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % (
+    COUCHDB_HOST, COUCHDB_PORT, COUCHDB_DATABASE, COUCHDB_DESIGN, COUCHDB_VIEW)
+
 class CouchDbCell(db.Model):
     """Models a CouchDB cell document.
 
@@ -55,74 +63,62 @@ class Variable(db.Expando):
     name = db.StringProperty()
 
 class CellValuesHandler(webapp.RequestHandler):
-    """Gets cell values.
+    """Handler for cell value requests."""
 
-    URL parameters:
-        k - Comma separated list of cell keys.
-        xy - Pipe separated list of comma separated lon/lat pairs.
-        c - Is true if cell coordinates are wanted.
+    @classmethod
+    def fromds(cls, cell_keys):
+        """Returns CouchDBCell entities from a datastore query on cell keys.
 
-    Example:
-        GET /api/cells/values?xy=1,2|7,3&v=bio1,bio2&c=true
+        Arguments:
+            cell_keys - A set of cell key strings (e.g., 9-15).
 
-    Returns:
-    [
-      {
-        "coordinate": [1,2], 
-        "cell-key": "1-2-3", 
-        "cell-values": 
-          [
-            {"bio1": -50},
-            {"bio2": -89}
-          ]
-      },
-      ...
-    ]
-    """
-
-    @staticmethod
-    def fromds(cell_keys):
-        cells = {}
+        Returns:
+            A dictionary of cell key to CouchDBCell.
+        """
         entities = CouchDbCell.get_by_key_name(cell_keys)
+        cells = {}
         for x in entities:
             if x:
                 cells[x.key().name()] = x
         return cells
 
-    @staticmethod
-    def fromcouchdb(cell_keys):
-        results = {}
-        #url = "http://ec2-75-101-194-134.compute-1.amazonaws.com:5984/sdl/_design/api/_view/cell-values"        
-        url = "http://127.0.0.1:5983/sdl/_design/api/_view/cell-values"        
-        payload = simplejson.dumps({'keys': list(cell_keys)})
-        logging.info('PAYLOAD: ' + payload)
-        method = urlfetch.POST
-        headers = {"Content-Type":"application/json"}
-        result = urlfetch.fetch(url, payload=payload, method=method, headers=headers)
+    @classmethod
+    def fromcouchdb(cls, cell_keys):
+        """Returns CouchDBCell entities from a CouchDB query on cell keys.
+        
+        Arguments:
+            cell_keys - A set of cell key strings (e.g., 9-15).
 
-        if result.status_code != 200:
-            logging.error(result.status_code)
-            return results
-
-        logging.info('Content: ' + result.content)
-        rows = simplejson.loads(result.content).get('rows')
-        logging.info(rows)
-        for row in rows:
+        Returns:
+            A dictionary of cell key to CouchDBCell.
+        """
+        response = urlfetch.fetch(
+            url=COUCHDB_URL,
+            payload=simplejson.dumps({'keys': list(cell_keys)}),
+            method=urlfetch.POST,
+            headers={"Content-Type":"application/json"})
+        if response.status_code != 200:
+            return {}
+        cells = {}        
+        for row in simplejson.loads(response.content).get('rows'):            
             key = row.get('key')
             value = row.get('value')
-            rev = value.get('rev')
-            coords = simplejson.dumps(value.get('coords'))
-            varvals = simplejson.dumps(value.get('varvals'))
-            results[key] = CouchDbCell(
-                key_name=key, rev=rev, coords=coords, varvals=varvals)
-
-        return results
+            cells[key] = CouchDbCell(
+                key_name=key,
+                rev=value.get('rev'),
+                coords=simplejson.dumps(value.get('coords')),
+                varvals=simplejson.dumps(value.get('varvals')))
+        return cells
 
     @classmethod
     def getcells(cls, cell_keys):
-        """Returns a list of cell value JSON strings.
+        """Gets CouchDBCell entities corresponding to a set of cell keys.
         
-        cell_keys - set of CellValue key_name strings.
+        Arguments:
+            cell_keys - A set of cell key strings (e.g., 9-15).
+
+        Returns:
+            A dictionary of cell key to CouchDBCell.
         """
         cells = {}
         
@@ -156,7 +152,6 @@ class CellValuesHandler(webapp.RequestHandler):
         return self.post()
     
     def post(self):
-        logging.info('POSTING')
         k = self.request.get('k', None) 
         v = self.request.get('v', None)
         c = 'true' == self.request.get('c')
