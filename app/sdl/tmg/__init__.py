@@ -733,8 +733,16 @@ class Cell(object):
     def __str__(self):
         return str(self.__dict__)
 
-    def __eq__(self, cell1, cell2):
-        return cell1._hashcode == cell2._hashcode
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return result
+        return not result
+
+    def __eq__(self, other):
+        if isinstance(other, Cell):
+            return self._hashcode == other._hashcode
+        return NotImplemented
 
     def __hash__(self):
         return self._hashcode
@@ -1253,8 +1261,17 @@ class CellPolygon(object):
     def __str__(self):
         return str(self.__dict__)
 
-    def __eq__(self, cp1, cp2):
-        return cp1._hashcode == cp2._hashcode
+
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return result
+        return not result
+
+    def __eq__(self, other):
+        if isinstance(other, CellPolygon):
+            return self._hashcode == other._hashcode
+        return NotImplemented
 
     def __hash__(self):
         return self._hashcode
