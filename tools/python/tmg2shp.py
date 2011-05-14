@@ -28,7 +28,11 @@ http://goo.gl/0awGK
 import fixpath
 fixpath.fix_sys_path()
 
+import logging
+import math
 from optparse import OptionParser
+import os
+from sdl.tmg import CellPolygon
 from sdl.tmg import gettile
 from sdl.tmg import get_rect_tile
 import shapefile
@@ -47,9 +51,6 @@ if __name__ == '__main__':
     parser.add_option("-e", "--east", dest="east",
                       help="East longitude of bounding box",
                       default=None)
-    parser.add_option("-c", "--cell-count", dest="cell_count",
-                      help="Cell count",
-                      default=None)
     parser.add_option("-r", "--resolution", dest="resolution",
                       help="Resolution",
                       default=None)
@@ -64,20 +65,65 @@ if __name__ == '__main__':
     west = float(options.west)
     east = float(options.east)
     resolution = float(options.resolution)
-    #cell_count = int(options.cell_count)
     filename = options.filename
+    logging.basicConfig(level=logging.DEBUG)    
 
+    # Total number of cells to generate:
+    ncells = int(math.pow(abs(north - south), 2) / resolution) 
+    logging.info('Cell count: %s' % ncells)
+
+    # Max number of cells per shapefile:
+    threshold = 25000
+    logging.info('THRESHOLD: %s' % threshold) 
+
+    cells = set()
+    cellscount = 0
+    filecount = 0
+    lng = west
+    lat = north
+    xindex = 0 
+
+    while lng <= east:
+        yindex = 0
+        while lat >= south:
+
+            # If at threshold, write all cells to shapefile and flush:
+            if cellscount > threshold:
+                logging.info('Writing shapefile')
+                w = shapefile.Writer(shapefile.POLYGON)
+                w.field('CellKey','C','255')    
+                for cell in cells:
+                    key = cell.cellkey
+                    parts = [list(x) for x in cell.polygon]
+                    w.poly(parts=[parts])
+                    w.record(CellKey=key)         
+                w.save(os.path.join(filename, str(filecount)))
+                filecount += 1
+                cellscount = 0
+                cells = set()
+
+            cellkey = '%s-%s' % (xindex, yindex)
+            polygon = tuple([
+                (lng, lat), 
+                (lng + resolution, lat), 
+                (lng + resolution, lat - resolution), 
+                (lng, lat - resolution), 
+                (lng, lat)])
+            cells.add(CellPolygon(cellkey, polygon))
+            cellscount += 1
+            lat -= resolution
+            yindex += 1
+        lat = north
+        lng += resolution
+        xindex += 1
+
+# Write any remaining cells to shapefile:
+if len(cells) > 0:
     w = shapefile.Writer(shapefile.POLYGON)
     w.field('CellKey','C','255')    
-#    for x in gettile((west, north), (east, south), resolution, cell_count):
-    for x in get_rect_tile((west, north), (east, south), resolution):
-        key = x.cellkey
-        parts = [list(x) for x in x.polygon]
+    for cell in cells:
+        key = cell.cellkey
+        parts = [list(x) for x in cell.polygon]
         w.poly(parts=[parts])
-        w.record(CellKey=key)
-    w.save(filename)
-
-    # prj = open("%s.prj" % filename, "w")
-    # epsg = 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]'
-    # prj.write(epsg)
-    # prj.close()
+        w.record(CellKey=key)         
+    w.save(os.path.join(filename, str(filecount)))
