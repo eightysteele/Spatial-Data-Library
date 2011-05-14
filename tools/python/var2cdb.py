@@ -21,7 +21,10 @@ VAR_MAX = 293
 VAR_NODATA = -9999
 
 def scaleval(val, varmin, varmax):
-    return varmin + val * (varmax - varmin) / 255 
+    try:        
+        return varmin + float(val) * (varmax - varmin) / 255 
+    except:
+        return None
 
 def within_list(val, within):
     x = int(val)
@@ -36,8 +39,8 @@ def load(csvdir, couchdb_url):
         dr = csv.DictReader(open(os.path.join(csvdir, csvfile), 'r'))
         docs = []
         for row in dr:
-            cell_value = scaleval(float(row['avg_Band1']), VAR_MIN, VAR_MAX)
-            if cell_value > VAR_MAX or cell_value < VAR_MIN or cell_value is VAR_NODATA:
+            cell_value = scaleval(row['avg_Band1'], VAR_MIN, VAR_MAX)
+            if not cell_value or cell_value > VAR_MAX or cell_value < VAR_MIN or cell_value is VAR_NODATA:
                 continue
             docs.append({                
                     '_id': row['CellKey'],
