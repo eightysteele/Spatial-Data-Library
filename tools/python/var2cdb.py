@@ -44,7 +44,8 @@ def load(csvdir, couchdb_url):
                     'coords': [], # TODO
                     'vars': {row['RID'].split('_')[0]: float(row['avg_Band1'])}
                     })
-        sdl.update(docs)        
+        logging.info('Bulkloading %s documents' % len(docs))
+        sdl.update(docs)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)    
