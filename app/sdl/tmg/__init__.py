@@ -1295,9 +1295,13 @@ def get_rect_tile(nwcorner, secorner, resolution):
     while lng <= east:
         yindex = 0
         while lat >= south:
-            cellkey = str(xindex)+'-'+str(yindex)
-            polygon = ((lng, lat), (lng+resolution, lat), (lng+resolution, lat-resolution), (lng, lat-resolution), (lng,lat))
-#            polygon = tuple([(float(x[0]), float(x[1])) for x in get_cell_polygon(cellkey)])
+            cellkey = '%s-%s' % (xindex, yindex)
+            polygon = tuple([
+                (lng, lat), 
+                (lng + resolution, lat), 
+                (lng + resolution, lat - resolution), 
+                (lng, lat - resolution), 
+                (lng, lat)])
             cells.add(CellPolygon(cellkey, polygon))
             lat -= resolution
             yindex += 1
