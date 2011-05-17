@@ -5,6 +5,7 @@ import hashlib
 import logging
 from optparse import OptionParser
 import os
+import random
 import re
 import simplejson
 from uuid import uuid4
@@ -30,6 +31,12 @@ def within_list(val, within):
     x = int(val)
     return range(x - within, x + within + 1)
 
+def mock_vars(val):
+    vars = {'bio1':val}
+    for x in range(2, 25):
+        vars['bio%s' % x] = random.uniform(-200, 500)
+    return vars
+
 def load(csvdir, couchdb_url):
     csvdir = os.path.abspath(csvdir)
     server = Server(couchdb_url)
@@ -44,8 +51,8 @@ def load(csvdir, couchdb_url):
                 continue
             docs.append({                
                     '_id': row['CellKey'],
-                    'coords': [], # TODO
-                    'vars': {row['RID'].split('_')[0]: float(row['avg_Band1'])}
+                    'coords': [[random.uniform(x, 90),random.uniform(-180, x)] for x in range(-2,3)], # TODO
+                    'vars': mock_vars(float(row['avg_Band1']))
                     })
         logging.info('Bulkloading %s documents' % len(docs))
         sdl.update(docs)
