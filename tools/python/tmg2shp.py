@@ -18,7 +18,7 @@ __author__ = "Aaron Steele, Dave Vieglais, and John Wieczorek"
 
 """
 This module supports the creation of ESRI shp files of the Triangular Mesh Grid
-overlapping the rectangular grid given by a bounding box and a rectangular grid 
+overlapping the rectangular grid given by a bounding box and a rectangular grid
 resolution in decimal degrees.
 
 The Triangular Mesh Grid design is specified here:
@@ -62,7 +62,7 @@ if __name__ == '__main__':
                       default=None)
 
     (options, args) = parser.parse_args()
-        
+
     north = float(options.north)
     south = float(options.south)
     west = float(options.west)
@@ -71,10 +71,10 @@ if __name__ == '__main__':
     # Max number of cells per shapefile:
     threshold = float(options.threshold)
     filename = options.filename
-    logging.basicConfig(level=logging.DEBUG)    
+    logging.basicConfig(level=logging.DEBUG)
 
     # Total number of cells to generate:
-    ncells = (int(north - south) / resolution) * (int(east-west) / resolution) 
+    ncells = (int(north - south) / resolution) * (int(east-west) / resolution)
     logging.info('Cell count: %s Threshold: %s' % (ncells, threshold) )
 
     cells = set()
@@ -82,19 +82,10 @@ if __name__ == '__main__':
     filecount = 0
     lng = west
     lat = north
-    xindex = 0 
+    xindex = 0
     cellkey = '0-0'
 
     while lng < east:
-        yindex = 0
-        while lat > south:
-
-            # If at threshold, write all cells to shapefile and flush:
-            if cellscount >= threshold:
-                w = shapefile.Writer(shapefile.POLYGON)
-                w.field('CellKey','C','255')
-
-    while lng <= east:
         yindex = 0
         while lat >= south:
 
@@ -102,7 +93,7 @@ if __name__ == '__main__':
             if cellscount > threshold:
                 logging.info('Writing shapefile')
                 w = shapefile.Writer(shapefile.POLYGON)
-                w.field('CellKey','C','255')    
+                w.field('CellKey','C','255')
                 for cell in cells:
                     key = cell.cellkey
                     parts = [list(x) for x in cell.polygon]
@@ -116,10 +107,10 @@ if __name__ == '__main__':
 
             cellkey = '%s-%s' % (xindex, yindex)
             polygon = tuple([
-                (lng, lat), 
-                (lng + resolution, lat), 
-                (lng + resolution, lat - resolution), 
-                (lng, lat - resolution), 
+                (lng, lat),
+                (lng + resolution, lat),
+                (lng + resolution, lat - resolution),
+                (lng, lat - resolution),
                 (lng, lat)])
             cells.add(CellPolygon(cellkey, polygon))
             cellscount += 1
@@ -132,11 +123,11 @@ if __name__ == '__main__':
 # Write any remaining cells to shapefile:
 if len(cells) > 0:
     w = shapefile.Writer(shapefile.POLYGON)
-    w.field('CellKey','C','255')    
+    w.field('CellKey','C','255')
     for cell in cells:
         key = cell.cellkey
         parts = [list(x) for x in cell.polygon]
         w.poly(parts=[parts])
-        w.record(CellKey=key)         
+        w.record(CellKey=key)
     w.save(os.path.join(filename, cellkey))
     logging.info('Writing shapefile %s' % cellkey)
