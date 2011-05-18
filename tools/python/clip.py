@@ -36,7 +36,7 @@ def clip(indir, clipsrc, outdir):
         outdir - Directory to write resulting shapefiles
     """
     indir = os.path.abspath(indir)
-    clipsrc = os.path.abspath(raster)
+    clipsrc = os.path.abspath(clipsrc)
     outdir = os.path.abspath(outdir)
     os.chdir(indir)
     shapefiles = [x for x in os.listdir('.') if x.endswith('.shp')]
@@ -67,4 +67,4 @@ if __name__ == '__main__':
     clipsrc = options.clipsrc
     outdir = options.outdir
     
-    intersect(indir, clipsrc, outdir)
+    clip(indir, clipsrc, outdir)
