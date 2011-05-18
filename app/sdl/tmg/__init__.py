@@ -776,8 +776,16 @@ class Cell(object):
     def __str__(self):
         return str(self.__dict__)
 
-    def __eq__(self, cell1, cell2):
-        return cell1._hashcode == cell2._hashcode
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return result
+        return not result
+
+    def __eq__(self, other):
+        if isinstance(other, Cell):
+            return self._hashcode == other._hashcode
+        return NotImplemented
 
     def __hash__(self):
         return self._hashcode
@@ -1491,8 +1499,17 @@ class CellPolygon(object):
     def __str__(self):
         return str(self.__dict__)
 
-    def __eq__(self, cp1, cp2):
-        return cp1._hashcode == cp2._hashcode
+
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return result
+        return not result
+
+    def __eq__(self, other):
+        if isinstance(other, CellPolygon):
+            return self._hashcode == other._hashcode
+        return NotImplemented
 
     def __hash__(self):
         return self._hashcode
@@ -1516,9 +1533,13 @@ def get_rect_tile(nwcorner, secorner, resolution):
     while lng <= east:
         yindex = 0
         while lat >= south:
-            cellkey = str(xindex)+'-'+str(yindex)
-            polygon = ((lng, lat), (lng+resolution, lat), (lng+resolution, lat-resolution), (lng, lat-resolution), (lng,lat))
-#            polygon = tuple([(float(x[0]), float(x[1])) for x in get_cell_polygon(cellkey)])
+            cellkey = '%s-%s' % (xindex, yindex)
+            polygon = tuple([
+                (lng, lat), 
+                (lng + resolution, lat), 
+                (lng + resolution, lat - resolution), 
+                (lng, lat - resolution), 
+                (lng, lat)])
             cells.add(CellPolygon(cellkey, polygon))
             lat -= resolution
             yindex += 1

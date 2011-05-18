@@ -93,13 +93,22 @@ if __name__ == '__main__':
             if cellscount >= threshold:
                 w = shapefile.Writer(shapefile.POLYGON)
                 w.field('CellKey','C','255')
+
+    while lng <= east:
+        yindex = 0
+        while lat >= south:
+
+            # If at threshold, write all cells to shapefile and flush:
+            if cellscount > threshold:
+                logging.info('Writing shapefile')
+                w = shapefile.Writer(shapefile.POLYGON)
+                w.field('CellKey','C','255')    
                 for cell in cells:
                     key = cell.cellkey
                     parts = [list(x) for x in cell.polygon]
                     w.poly(parts=[parts])
                     w.record(CellKey=key)
                 w.save(os.path.join(filename, cellkey))
-#                w.save(os.path.join(filename, str(filecount)))
                 logging.info('Writing shapefile %s' % cellkey)
                 filecount += 1
                 cellscount = 0
@@ -131,4 +140,3 @@ if len(cells) > 0:
         w.record(CellKey=key)         
     w.save(os.path.join(filename, cellkey))
     logging.info('Writing shapefile %s' % cellkey)
-    
