@@ -38,11 +38,13 @@ def intersect(indir, raster, outdir):
     indir = os.path.abspath(indir)
     raster = os.path.abspath(raster)
     outdir = os.path.abspath(outdir)
+
     os.chdir(indir)
+    rasterfiles = [x for x in os.listdir(raster) if x.endswith('.bil')]
     vectorfiles = [x for x in os.listdir('.') if x.endswith('.shp')]
     for v in vectorfiles:
         csvfile = os.path.join(outdir, v.replace('.shp', '-starspan-stats-ave.csv'))
-        commandline = 'starspan --vector %s --raster %s --stats %s avg' % (v, raster, csvfile)
+        commandline = 'starspan --vector %s --raster %s --csv %s' % (v, raster, csvfile)
         logging.info(commandline)
         args = shlex.split(commandline)
         subprocess.call(args)
