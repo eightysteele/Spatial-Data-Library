@@ -37,6 +37,12 @@ from sdl.tmg import gettile
 from sdl.tmg import get_rect_tile
 import shapefile
 
+def getcellkey(globalrow, globalcol, tilerow, tilecol, res, dim):
+    """Gets the global cell key."""
+    x = int(math.floor((globalcol * (dim / res)) + tilecol))
+    y = int(math.floor((globalrow * (dim /res)) + tilerow))
+    return '%s-%s' % (x, y)
+
 if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-n", "--north", dest="north",
@@ -60,6 +66,10 @@ if __name__ == '__main__':
     parser.add_option("-f", "--filename", dest="filename",
                       help="Output path and file name, .shp, .shx, and .dbf will be created.",
                       default=None)
+    parser.add_option("-g", "--globaltile", dest="globaltile",
+                      help="Global tile x,y",
+                      default=None)
+
 
     (options, args) = parser.parse_args()
 
@@ -67,9 +77,12 @@ if __name__ == '__main__':
     south = float(options.south)
     west = float(options.west)
     east = float(options.east)
+    y, x = options.globaltile.split(',')
+    globalrow = int(y)
+    globalcol = int(x)
     resolution = float(options.resolution)
     # Max number of cells per shapefile:
-    threshold = float(options.threshold)
+    threshold = int(options.threshold)
     filename = options.filename
     logging.basicConfig(level=logging.DEBUG)
 
@@ -79,6 +92,7 @@ if __name__ == '__main__':
 
     cells = set()
     cellscount = 0
+    cellswritten = 0
     filecount = 0
     lng = west
     lat = north
@@ -87,11 +101,10 @@ if __name__ == '__main__':
 
     while lng < east:
         yindex = 0
-        while lat >= south:
+        while lat > south:
 
             # If at threshold, write all cells to shapefile and flush:
-            if cellscount > threshold:
-                logging.info('Writing shapefile')
+            if cellscount >= threshold:
                 w = shapefile.Writer(shapefile.POLYGON)
                 w.field('CellKey','C','255')
                 for cell in cells:
@@ -100,12 +113,13 @@ if __name__ == '__main__':
                     w.poly(parts=[parts])
                     w.record(CellKey=key)
                 w.save(os.path.join(filename, cellkey))
-                logging.info('Writing shapefile %s' % cellkey)
+                cellswritten += cellscount
+                logging.info('Writing %s cells to shapefile %s (%s total cells written)' % (cellscount, cellkey, cellswritten))
                 filecount += 1
                 cellscount = 0
                 cells = set()
 
-            cellkey = '%s-%s' % (xindex, yindex)
+            cellkey = getcellkey(globalrow, globalcol, yindex, xindex, resolution, 30) # 30 is tiles size in degrees
             polygon = tuple([
                 (lng, lat),
                 (lng + resolution, lat),
