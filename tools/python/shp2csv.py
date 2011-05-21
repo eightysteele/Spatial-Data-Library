@@ -27,6 +27,8 @@ import os
 import shlex
 import subprocess
 
+
+
 def intersect(indir, raster, outdir):
     """Intersects a directory of shapefiles with a raster file using Starspan.
 
