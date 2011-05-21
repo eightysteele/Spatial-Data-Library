@@ -27,11 +27,11 @@ import simplejson
 #from google.appengine.dist import use_library
 #use_library('django', '1.2')
 
-COUCHDB_HOST = 'http://ec2-184-73-71-48.compute-1.amazonaws.com'
+COUCHDB_HOST = 'http://eighty.berkeley.edu'
 COUCHDB_PORT = 5984
 COUCHDB_DATABASE = 'sdl'
 COUCHDB_DESIGN = 'api'
-COUCHDB_VIEW = 'cell-values'
+COUCHDB_VIEW = 'cells'
 COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % (
     COUCHDB_HOST, COUCHDB_PORT, COUCHDB_DATABASE, COUCHDB_DESIGN, COUCHDB_VIEW)
 
@@ -95,6 +95,7 @@ class CellValuesHandler(webapp.RequestHandler):
         Returns:
             A dictionary of cell key to CouchDBCell.
         """
+        logging.info(COUCHDB_URL)
         response = urlfetch.fetch(
             url=COUCHDB_URL,
             payload=simplejson.dumps({'keys': list(cell_keys)}),
