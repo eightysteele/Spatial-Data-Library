@@ -37,6 +37,9 @@ def mock_vars(val):
         vars['bio%s' % x] = random.uniform(-200, 500)
     return vars
 
+# FID,CellKey,RID,col,row,x,y,Band1
+# 0,27178-13595,bio1_37.bil,1979,2795,46.483,-23.292,203
+
 def load(csvdir, couchdb_url):
     csvdir = os.path.abspath(csvdir)
     server = Server(couchdb_url)
@@ -44,19 +47,21 @@ def load(csvdir, couchdb_url):
     csvfiles = [x for x in os.listdir(csvdir) if x.endswith('.csv')]
     for csvfile in csvfiles:
         dr = csv.DictReader(open(os.path.join(csvdir, csvfile), 'r'))
-        docs = []
+        cells = {}
         for row in dr:
-            cell_value = scaleval(row['avg_Band1'], VAR_MIN, VAR_MAX)
-            if not cell_value or cell_value > VAR_MAX or cell_value < VAR_MIN or cell_value is VAR_NODATA:
-                continue
-            docs.append({                
-                    '_id': row['CellKey'],
+            cellkey = row.get('CellKey')
+            if not cells.has_key(cellkey):
+                cells[cellkey] = {
+                    '_id': cellkey, 
                     'coords': [[random.uniform(x, 90),random.uniform(-180, x)] for x in range(-2,3)], # TODO
-                    'vars': mock_vars(float(row['avg_Band1']))
-                    })
-        logging.info('Bulkloading %s documents' % len(docs))
-        sdl.update(docs)
-
+                    'vars': {}
+                    }            
+            varname = row.get('RID').split('_')[0]
+            varval = row.get('Band1')
+            cells.get(cellkey).get('vars')[varname] = varval
+        logging.info('Bulkloading %s documents' % len(cells))
+        sdl.update(cells.values())
+            
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)    
     
