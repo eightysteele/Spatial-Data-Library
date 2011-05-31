@@ -134,10 +134,39 @@ class Tile(object):
         for cell in cells:
             w.poly(parts=[cell.polygon])
             w.record(CellKey=cell.key)
-        w.save(filename)
-        # NEXT STEP: Clip this shapefile
+        w.save(filename)        
+        clippedfile = Tile.clip2cell('%s.shp' % filename, self.filename)
+        csvfile = Tile.intersect(clippedfile, options)
+    
+    @classmethod
+
+    # NEXT - CSV file doesn't have cell key but should.
+
+    def intersect(cls, shapefile, options):      
+        """Intesects features in a shapefile with variables via starspan."""
+        variables = [os.path.join(options.vardir, x) \
+                         for x in os.listdir(options.vardir) \
+                         if x.endswith('.bil')]
+        variables = reduce(lambda x,y: '%s %s' % (x, y), variables)
+        csvfile = shapefile.replace('.shp', '.csv')
+        command = 'starspan --vector %s --raster %s --csv %s' \
+            % (shapefile, variables, csvfile)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
+        return csvfile
         
-        
+    @classmethod
+    def clip2cell(cls, src, shapefile):
+        """Clips src by shapefile and returns clipped shapefile name."""
+        ogr2ogr = '/usr/local/bin/ogr2ogr'
+        clipped = src.replace('.shp', '-clipped.shp')
+        command = '%s -clipsrc %s %s %s' % (ogr2ogr, src, clipped, shapefile)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
+        return clipped
+                
     def bulkload2couchdb(self, options):
         """Bulkloads the tile to CouchDB using command line options."""
         batchsize = int(options.batchsize)
@@ -155,7 +184,7 @@ class Tile(object):
             cells.append(cell)
             count += 1
         if count > 0:
-            self._clip2intersect2couchdb(cells, options)
+            self._clip2intersect2couchdb(cells, options, batchnum)
     
     def clip(self, shapefile, workspace):
         """Clips shapefile against tile and returns clipped Tile object."""
@@ -204,7 +233,6 @@ class Tile(object):
             lat = self.north
             lng += cellres
             col += 1
-
 
 def _getoptions():
     """Parses command line options and returns them."""
