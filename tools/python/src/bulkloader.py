@@ -121,11 +121,44 @@ class Tile(object):
                  [lng, lat - cellres],
                  [lng, lat]
                ]
+
     def __str__(self):
         return str(self.__dict__)
 
+    def _clip2intersect2couchdb(self, cells, options, batchnum):
+        logging.info(self.filename)
+        filename = os.path.join(os.path.splitext(self.filename)[0], '%s' % batchnum)
+        logging.info(filename)
+        w = shapefile.Writer(shapefile.POLYGON)
+        w.field('CellKey','C','255')
+        for cell in cells:
+            w.poly(parts=[cell.polygon])
+            w.record(CellKey=cell.key)
+        w.save(filename)
+        # NEXT STEP: Clip this shapefile
+        
+        
+    def bulkload2couchdb(self, options):
+        """Bulkloads the tile to CouchDB using command line options."""
+        batchsize = int(options.batchsize)
+        batchnum = 0
+        cellres = int(options.cellres)
+        cells = []
+        count = 0
+        for cell in self.getcells(cellres):
+            if count >= batchsize:
+                self._clip2intersect2couchdb(cells, options, batchnum)
+                count = 0
+                cells = []
+                batchnum += 1
+                continue
+            cells.append(cell)
+            count += 1
+        if count > 0:
+            self._clip2intersect2couchdb(cells, options)
+    
     def clip(self, shapefile, workspace):
-        """Clips shapefile against tile and returns clipped shapefile name."""
+        """Clips shapefile against tile and returns clipped Tile object."""
         ogr2ogr = '/usr/local/bin/ogr2ogr'
         this = self.writeshapefile(workspace)
         clipped = this.replace('.shp', '-clipped.shp')
@@ -148,9 +181,6 @@ class Tile(object):
 
     def writemultishapefiles(self):
         pass
-
-        
-
                                             
     def getcells(self, cellres):
         """Iterates over all cells in the tile at the given cellres.
@@ -223,6 +253,7 @@ def load(options):
     tile = Tile(row, col)
     clipped = tile.clip(options.gadm, options.workspace)
     logging.info('Clipped: %s' % str(clipped))
+    clipped.bulkload2couchdb(options)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
