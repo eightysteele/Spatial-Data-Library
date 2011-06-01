@@ -41,7 +41,7 @@ def clip(indir, clipsrc, outdir):
     os.chdir(indir)
     shapefiles = [x for x in os.listdir('.') if x.endswith('.shp')]
     for v in shapefiles:
-        clipped = os.path.join(outdir, v.replace('.shp', '-clipped.shp'))
+        clipped = os.path.join(outdir, v.replace('.shp', '-terrestrial.shp'))
         commandline = '/usr/local/bin/ogr2ogr -clipsrc %s %s %s' % (clipsrc, clipped, v)
         logging.info(commandline)
         args = shlex.split(commandline)

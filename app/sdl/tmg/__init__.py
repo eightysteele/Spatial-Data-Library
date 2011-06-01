@@ -664,7 +664,8 @@ class Cell(object):
         logging.debug(out)
 
         placemarks = []
-        key_list = get_tile(from_ll, to_ll, orientation, cell_count)
+        key_list = gettile(from_ll, to_ll, orientation, cell_count)
+#        key_list = get_tile(from_ll, to_ll, orientation, cell_count)
         out = 'createBBAsKmlMesh() key_list: %s ' % (key_list)
         logging.debug(out)
         for cell_key in key_list:
@@ -776,16 +777,8 @@ class Cell(object):
     def __str__(self):
         return str(self.__dict__)
 
-    def __ne__(self, other):
-        result = self.__eq__(other)
-        if result is NotImplemented:
-            return result
-        return not result
-
-    def __eq__(self, other):
-        if isinstance(other, Cell):
-            return self._hashcode == other._hashcode
-        return NotImplemented
+    def __eq__(self, cell1, cell2):
+        return cell1._hashcode == cell2._hashcode
 
     def __hash__(self):
         return self._hashcode
@@ -1482,6 +1475,36 @@ def get_oriented_bounding_box(from_ll, to_ll, orientation = 0):
 #    logging.debug(out)
     return bb
     
+#class CellPolygon(object):
+#    def __init__(self, cellkey, polygon):
+#        self._cellkey = cellkey
+#        self._polygon = polygon
+#        self._hashcode = hash((self._cellkey, self._polygon))
+#        
+#    def getcellkey(self): 
+#        return self._cellkey
+#    cellkey = property(getcellkey)
+#        
+#    def getpolygon(self):
+#        return self._polygon
+#    polygon = property(getpolygon)
+#        
+#    def __str__(self):
+#        return str(self.__dict__)
+#
+#    def __eq__(self, cp1, cp2):
+#        return cp1._hashcode == cp2._hashcode
+#
+#    def __hash__(self):
+#        return self._hashcode
+#
+#    def __cmp__(self, other):
+#        if self.cellkey > other.cellkey:
+#            return 1
+#        elif self.cellkey < other.cellkey:
+#            return -1
+#        return 0
+               
 class CellPolygon(object):
     def __init__(self, cellkey, polygon):
         self._cellkey = cellkey
@@ -1533,13 +1556,9 @@ def get_rect_tile(nwcorner, secorner, resolution):
     while lng <= east:
         yindex = 0
         while lat >= south:
-            cellkey = '%s-%s' % (xindex, yindex)
-            polygon = tuple([
-                (lng, lat), 
-                (lng + resolution, lat), 
-                (lng + resolution, lat - resolution), 
-                (lng, lat - resolution), 
-                (lng, lat)])
+            cellkey = str(xindex)+'-'+str(yindex)
+            polygon = ((lng, lat), (lng+resolution, lat), (lng+resolution, lat-resolution), (lng, lat-resolution), (lng,lat))
+#            polygon = tuple([(float(x[0]), float(x[1])) for x in get_cell_polygon(cellkey)])
             cells.add(CellPolygon(cellkey, polygon))
             lat -= resolution
             yindex += 1
@@ -1550,10 +1569,10 @@ def get_rect_tile(nwcorner, secorner, resolution):
 
 def gettile(nwcorner, secorner, resolution, cell_count = CELL_COUNT):
     cells = set()
-    north = nwcorner[1]
-    west = nwcorner[0]
-    south = secorner[1]
-    east = secorner[0]
+    north = nwcorner[0]
+    west = nwcorner[1]
+    south = secorner[0]
+    east = secorner[1]
     lng = west
     lat = north
     while lng <= east:
@@ -2506,6 +2525,13 @@ if __name__ == '__main__':
     if command == 'test':
         cell_count = int(options.cell_count)
         testpasses = test_suite(cell_count)
+    if command == 'gettile':
+        '''from_ll must be the NW corner, to_ll must be the SE corner.'''
+        from_ll = map(float, options.from_ll.split(','))
+        to_ll = map(float, options.to_ll.split(','))
+        resolution = int(options.resolution)
+        cell_count = int(options.cell_count)
+        print gettile(from_ll, to_ll, resolution, cell_count)
     if command == 'get_tile':
         from_ll = map(float, options.from_ll.split(','))
         to_ll = map(float, options.to_ll.split(','))
