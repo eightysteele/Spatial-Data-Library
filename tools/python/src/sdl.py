@@ -127,9 +127,6 @@ class Tile(object):
         csvfile = Tile.intersect(clippedfile, options)
     
     @classmethod
-
-    # NEXT - CSV file doesn't have cell key but should.
-
     def intersect(cls, shapefile, options):      
         """Intesects features in a shapefile with variables via starspan."""
         variables = [os.path.join(options.vardir, x) \
