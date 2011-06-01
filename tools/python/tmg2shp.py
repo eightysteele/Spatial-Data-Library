@@ -105,6 +105,7 @@ if __name__ == '__main__':
 
             # If at threshold, write all cells to shapefile and flush:
             if cellscount >= threshold:
+                logging.info('Writing shapefile')
                 w = shapefile.Writer(shapefile.POLYGON)
                 w.field('CellKey','C','255')
                 for cell in cells:
