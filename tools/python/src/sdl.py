@@ -31,7 +31,7 @@ import shapefile
 import shlex
 import subprocess
 
-WORLDCLIM_TILE_RESOLUTION_DEGREES = 30
+WORLDCLIM_TILE_RESOLUTION_DEGREES = 30.0
 
 class Variable(object):
     """An environmental variable backed by a .bil and a .hdr file."""
@@ -76,18 +76,6 @@ class TileCell(object):
 class Tile(object):
     """A 30 arc-second geographic tile (http://www.worldclim.org/tiles.php)."""
 
-    @classmethod
-    def fromshapefile(cls, filename):
-        logging.info('Creating tile from shapefile: %s' % filename)
-        s = shapefile.Reader(filename)
-        bbox = s.shapes()[0].bbox
-        logging.info('Bounding box: %s' % str(bbox))
-        north = bbox[3]
-        west = bbox[0]
-        row = north - 90 / 30
-        col = west + 180 / 30
-        return Tile(row, col, filename)
-        
     def __init__(self, row, col, filename=None):
         """Tile constructor.
 
@@ -100,10 +88,10 @@ class Tile(object):
         self.row = row
         self.col = col
         self.filename = filename
-        self.north = 90 - (self.resolution * row)
+        self.north = 90.0 - (self.resolution * row)
         self.south = self.north - self.resolution
-        self.west = -180 + (self.resolution * col)
-        self.east = self.west + 30        
+        self.west = -180.0 + (self.resolution * col)
+        self.east = self.west + 30.0        
 
     def _getcellkey(self, tilerow, tilecol, cellres):
         """Gets the global cell key."""
@@ -161,7 +149,7 @@ class Tile(object):
         """Clips src by shapefile and returns clipped shapefile name."""
         ogr2ogr = '/usr/local/bin/ogr2ogr'
         clipped = src.replace('.shp', '-clipped.shp')
-        command = '%s -clipsrc %s %s %s' % (ogr2ogr, src, clipped, shapefile)
+        command = '%s -clipsrc %s %s %s' % (ogr2ogr, shapefile, clipped, src)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
@@ -171,7 +159,7 @@ class Tile(object):
         """Bulkloads the tile to CouchDB using command line options."""
         batchsize = int(options.batchsize)
         batchnum = 0
-        cellres = int(options.cellres)
+        cellres = float(options.cellres)
         cells = []
         count = 0
         for cell in self.getcells(cellres):
@@ -199,12 +187,12 @@ class Tile(object):
 
     def writeshapefile(self, workspace):
         """Writes tile shapefile in workspace directory and returns filename."""
-        cell = self.getcells(30).next()            
+        cell = self.getcells(30.0).next()            
         fout = os.path.join(workspace, cell.key)
         w = shapefile.Writer(shapefile.POLYGON)
         w.field('CellKey','C','255')
         w.poly(parts=[cell.polygon])
-        w.record(CellKey=cell.key)        
+        w.record(CellKey=cell.key)
         w.save(fout)        
         return '%s.shp' % fout
 
