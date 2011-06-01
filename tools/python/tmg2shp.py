@@ -87,10 +87,10 @@ if __name__ == '__main__':
 
     while lng < east:
         yindex = 0
-        while lat >= south:
+        while lat > south:
 
             # If at threshold, write all cells to shapefile and flush:
-            if cellscount > threshold:
+            if cellscount >= threshold:
                 logging.info('Writing shapefile')
                 w = shapefile.Writer(shapefile.POLYGON)
                 w.field('CellKey','C','255')
