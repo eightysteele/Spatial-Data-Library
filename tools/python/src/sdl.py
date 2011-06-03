@@ -22,6 +22,7 @@ WorldClim environment variables to CouchDB.
 """
 
 import csv
+import couchdb
 import logging
 import math
 from optparse import OptionParser
@@ -125,7 +126,30 @@ class Tile(object):
         w.save(filename)        
         clippedfile = Tile.clip2cell('%s.shp' % filename, self.filename)
         csvfile = Tile.intersect(clippedfile, options)
-    
+        server = couchdb.Server(options.couchurl)
+        cdb = server['sdl-dev']    
+        Tile.csv2couch(csvfile, cdb)
+
+    @classmethod
+    def csv2couch(cls, csvfile, cdb):
+        logging.info('Bulkloading csv file ' + csvfile)
+        dr = csv.DictReader(open(csvfile, 'r'))
+        cells = {}
+        dr.next() # Skip header
+        for row in dr:
+            cellkey = row.get('CellKey')
+            if not cells.has_key(cellkey):
+                cells[cellkey] = {
+                    '_id': cellkey, 
+                    'coords': [[random.uniform(x, 90),random.uniform(-180, x)] for x in range(-2,3)], # TODO
+                    'vars': {}
+                    }            
+            varname = row.get('RID').split('_')[0]
+            varval = row.get('Band1')
+            cells.get(cellkey).get('vars')[varname] = varval
+        logging.info('Bulkloading %s documents' % len(cells))
+        cdb.update(cells.values())
+
     @classmethod
     def intersect(cls, shapefile, options):      
         """Intesects features in a shapefile with variables via starspan."""
