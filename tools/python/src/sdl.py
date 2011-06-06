@@ -34,6 +34,35 @@ import subprocess
 
 WORLDCLIM_TILE_RESOLUTION_DEGREES = 30.0
 
+DEGREE_DIGITS = 7
+FORMAT = """.%sf"""
+
+def lng180(lng):
+    '''Given a longitude in degrees, returns a longitude in degrees between {-180, 180].'''
+    newlng = float(lng)
+    if newlng <= -180:
+        newlng = newlng + 360
+    elif newlng > 180:
+        newlng = newlng - 360
+    return float(truncate(newlng, DEGREE_DIGITS))
+
+def truncate(x, digits):
+    '''Set the representational precision of x to digits places to the right of the decimal.'''
+    format_x = FORMAT % digits
+    return format(x,format_x)
+
+def getpolygon(lng, lat, resolution):
+    '''Returns list of points in lng, lat order for a cell whose center is 
+    given by lng, lat on a grid with resolution defined in the same degrees.
+    Assumes math.fabs(lat) < 90
+    Example: 30 sec grid has resolution = 0.0083333'''
+    
+    nw = [lng180(lng-resolution/2), lat+resolution/2]
+    ne = [lng180(lng+resolution/2), lat+resolution/2]
+    se = [lng180(lng+resolution/2), lat-resolution/2]
+    sw = [lng180(lng-resolution/2), lat-resolution/2]
+    return [nw, ne, se, sw]
+
 class Variable(object):
     """An environmental variable backed by a .bil and a .hdr file."""
 
@@ -128,20 +157,24 @@ class Tile(object):
         csvfile = Tile.intersect(clippedfile, options)
         server = couchdb.Server(options.couchurl)
         cdb = server['sdl-dev']    
-        Tile.csv2couch(csvfile, cdb)
+        cellres = float(options.cellres)
+        Tile.csv2couch(csvfile, cdb, cellres)
 
     @classmethod
-    def csv2couch(cls, csvfile, cdb):
+    def csv2couch(cls, csvfile, cdb, cellres):
         logging.info('Bulkloading csv file ' + csvfile)
         dr = csv.DictReader(open(csvfile, 'r'))
         cells = {}
-        dr.next() # Skip header
+        
+        #dr.next() # Skip header
         for row in dr:
             cellkey = row.get('CellKey')
+            x = float(row.get('x'))
+            y = float(row.get('y'))
             if not cells.has_key(cellkey):
                 cells[cellkey] = {
                     '_id': cellkey, 
-                    'coords': [[random.uniform(x, 90),random.uniform(-180, x)] for x in range(-2,3)], # TODO
+                    'coords': getpolygon(x, y, cellres),
                     'vars': {}
                     }            
             varname = row.get('RID').split('_')[0]
