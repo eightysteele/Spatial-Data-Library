@@ -32,7 +32,8 @@ import shapefile
 import shlex
 import subprocess
 
-WORLDCLIM_TILE_RESOLUTION_DEGREES = 30.0
+CELLS_PER_DEGREE = 120
+TILE_WIDTH_DEGREES = 30
 
 DEGREE_DIGITS = 7
 FORMAT = """.%sf"""
@@ -51,12 +52,12 @@ def truncate(x, digits):
     format_x = FORMAT % digits
     return format(x,format_x)
 
-def getpolygon(lng, lat, resolution):
+def getpolygon(lng, lat, cells_per_degree = CELLS_PER_DEGREE):
     '''Returns list of points in lng, lat order for a cell whose center is 
     given by lng, lat on a grid with resolution defined in the same degrees.
     Assumes math.fabs(lat) < 90
-    Example: 30 sec grid has resolution = 0.0083333'''
-    
+    Example: 30 sec grid has 120 cells per degree and resolution = 0.0083333'''
+    resolution = 1.0/cells_per_degree
     nw = [lng180(lng-resolution/2), lat+resolution/2]
     ne = [lng180(lng+resolution/2), lat+resolution/2]
     se = [lng180(lng+resolution/2), lat-resolution/2]
@@ -91,12 +92,12 @@ class Variable(object):
 class TileCell(object):
     """A tile cell described by a polygon with geographic coordinates."""
 
-    def __init__(self, resolution, key, polygon):
+    def __init__(self, cells_per_degree = CELLS_PER_DEGREE, key, polygon):
         """Constructs a TileCell.
 
         Arguments:
         """
-        self.resolution = resolution
+        self.cells_per_degree
         self.key = key
         self.polygon = polygon
         
@@ -114,24 +115,24 @@ class Tile(object):
             col - The global tile column number.
             filename - Shapefile file name.
         """
-        self.resolution = WORLDCLIM_TILE_RESOLUTION_DEGREES
+        self.width = TILE_WIDTH_DEGREES
         self.row = row
         self.col = col
         self.filename = filename
-        self.north = 90.0 - (self.resolution * row)
-        self.south = self.north - self.resolution
-        self.west = -180.0 + (self.resolution * col)
-        self.east = self.west + 30.0        
+        self.north = 90.0 - self.width * row
+        self.south = self.north - self.width
+        self.west = -180.0 + self.width * col
+        self.east = self.west + self.width
 
-    def _getcellkey(self, tilerow, tilecol, cellres):
+    def _getcellkey(self, tilerow, tilecol, cells_per_degree = CELLS_PER_DEGREE):
         """Gets the global cell key."""
-        multiplier = self.resolution / cellres
-        x = int(math.floor((self.col * multiplier) + tilecol))
-        y = int(math.floor((self.row * multiplier) + tilerow))
-        return '%s-%s' % (y, x)
+        x = self.col * self.width * cells_per_degree + tilecol
+        y = self.row * self.width * cells_per_degree + tilerow
+        return '%s-%s' % (x, y)
 
-    def _getcellpolygon(self, lat, lng, cellres):
-        """Gets the cell polygon for a lat, lng, and cell resolution."""
+    def _getcellpolygon(self, lat, lng, cells_per_degree = CELLS_PER_DEGREE):
+        """Gets the cell polygon given the cells per degree and the lat, lng of the NW corner."""
+        cellres = 1.0/cells_per_degree
         return [
                  [lng, lat],                       
                  [lng + cellres, lat],
@@ -157,11 +158,11 @@ class Tile(object):
         csvfile = Tile.intersect(clippedfile, options)
         server = couchdb.Server(options.couchurl)
         cdb = server['sdl-dev']    
-        cellres = float(options.cellres)
-        Tile.csv2couch(csvfile, cdb, cellres)
+        cells_per_degree = float(options.cells_per_degree)
+        Tile.csv2couch(csvfile, cdb, cells_per_degree)
 
     @classmethod
-    def csv2couch(cls, csvfile, cdb, cellres):
+    def csv2couch(cls, csvfile, cdb, cells_per_degree = CELLS_PER_DEGREE):
         logging.info('Bulkloading csv file ' + csvfile)
         dr = csv.DictReader(open(csvfile, 'r'))
         cells = {}
@@ -174,7 +175,7 @@ class Tile(object):
             if not cells.has_key(cellkey):
                 cells[cellkey] = {
                     '_id': cellkey, 
-                    'coords': getpolygon(x, y, cellres),
+                    'coords': getpolygon(x, y, cells_per_degree),
                     'vars': {}
                     }            
             varname = row.get('RID').split('_')[0]
@@ -213,10 +214,10 @@ class Tile(object):
         """Bulkloads the tile to CouchDB using command line options."""
         batchsize = int(options.batchsize)
         batchnum = 0
-        cellres = float(options.cellres)
+        cells_per_degree = float(options.cells_per_degree)
         cells = []
         count = 0
-        for cell in self.getcells(cellres):
+        for cell in self.getcells(cells_per_degree):
             if count >= batchsize:
                 self._clip2intersect2couchdb(cells, options, batchnum)
                 count = 0
@@ -253,12 +254,13 @@ class Tile(object):
     def writemultishapefiles(self):
         pass
                                             
-    def getcells(self, cellres):
-        """Iterates over all cells in the tile at the given cellres.
+    def getcells(self, cells_per_degree = CELLS_PER_DEGREE):
+        """Iterates over all cells in the tile at the given cell resolution.
 
         Arguments:
-            cellres - The cell resolution.
+            cells_per_degree - The number of cells in one degree of lat or lng.
         """
+        cellres = 1.0/cells_per_degree
         lng = self.west
         lat = self.north        
         row = 0
@@ -267,9 +269,9 @@ class Tile(object):
             row = 0
             while lat > self.south:
                 yield TileCell(
-                    cellres,
-                    self._getcellkey(row, col, cellres), 
-                    self._getcellpolygon(lat, lng, cellres))
+                    cells_per_degree,
+                    self._getcellkey(row, col, cells_per_degree), 
+                    self._getcellpolygon(lat, lng, cells_per_degree))
                 lat -= cellres
                 row += 1
             lat = self.north
@@ -309,11 +311,11 @@ def _getoptions():
                       dest="batchsize",
                       help="The batch size (default 25,000)",
                       default=None)
-    parser.add_option("-r", 
-                      "--cell-resolution", 
-                      dest="cellres",
-                      help="The cell resolution",
-                      default=None)
+    parser.add_option("-n", 
+                      "--cells-per-degree", 
+                      dest="cells_per_degree",
+                      help="The number of cells in a degree",
+                      default=CELLS_PER_DEGREE)
 
     return parser.parse_args()[0]
 
@@ -329,5 +331,3 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     options = _getoptions()
     load(options)    
-    
-    
