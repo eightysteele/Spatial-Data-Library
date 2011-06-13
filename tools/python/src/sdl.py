@@ -92,7 +92,7 @@ class Variable(object):
 class TileCell(object):
     """A tile cell described by a polygon with geographic coordinates."""
 
-    def __init__(self, cells_per_degree = CELLS_PER_DEGREE, key, polygon):
+    def __init__(self, key, polygon, cells_per_degree = CELLS_PER_DEGREE):
         """Constructs a TileCell.
 
         Arguments:
@@ -269,9 +269,9 @@ class Tile(object):
             row = 0
             while lat > self.south:
                 yield TileCell(
-                    cells_per_degree,
                     self._getcellkey(row, col, cells_per_degree), 
-                    self._getcellpolygon(lat, lng, cells_per_degree))
+                    self._getcellpolygon(lat, lng, cells_per_degree),
+                    cells_per_degree)
                 lat -= cellres
                 row += 1
             lat = self.north
