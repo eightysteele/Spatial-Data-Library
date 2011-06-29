@@ -26,14 +26,14 @@ class TileTest(unittest.TestCase):
     def test_getcells(self):
         tile = Tile(3, 7)
         cells = []
-        for cell in tile.getcells(30):
+        for cell in tile.getcells(1):
             cells.append(cell)
-        self.assertEqual(len(cells), 1)
+        self.assertEqual(len(cells), TILE_WIDTH_DEGREES)
         logging.info(cell)
 
         tile = Tile(3, 7)
         cells = []
-        for cell in tile.getcells(1):
+        for cell in tile.getcells():
             cells.append(cell)
         self.assertEqual(len(cells), 900)
 
