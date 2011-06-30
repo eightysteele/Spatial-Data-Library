@@ -115,6 +115,13 @@ class RMGTest(unittest.TestCase):
         tile = RMGTile(nwcorner, secorner, cells_per_degree)
         cellcount = tile.cellcount()
         self.assertEqual(cellcount, 41246)
+
+    def test_tile(self):
+        nwcorner = Point(-180,90)
+        secorner = Point(-90,0)
+        cells_per_degree = 0.1
+        tile = RMGTile(nwcorner, secorner, cells_per_degree)
+        print tile
         
     def test_tile_kml(self):
         nwcorner = Point(-180,90)
@@ -122,7 +129,7 @@ class RMGTest(unittest.TestCase):
         cells_per_degree = 0.1
         digits = 7
         tile = RMGTile(nwcorner, secorner, cells_per_degree, digits)
-        print tile.kml()
+#        print tile.kml()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)

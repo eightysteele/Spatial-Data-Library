@@ -3,7 +3,7 @@
 # Copyright 2011 Jante LLC and University of Kansas
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
+# you may not use this file except in compliance with the License.        
 # You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
@@ -22,7 +22,7 @@ WorldClim environment variables to CouchDB using the Rectangular Mesh Grid (RMG)
 """
 
 import csv
-#import couchdb
+import couchdb
 import logging
 import math
 from optparse import OptionParser
@@ -207,7 +207,7 @@ class Tile(object):
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
-        return Tile(self.nwcorner, self.swcorner, self.cells_per_degree, clipped)
+        return Tile(self.nwcorner, self.secorner, self.cells_per_degree, self.digits, self.a, self.inverse_flattening, clipped)
 
     def writeshapefile(self, workspace):
         """Writes tile shapefile in workspace directory and returns filename."""
@@ -304,7 +304,7 @@ if __name__ == '__main__':
     command = options.command.lower()
     
     if command == 'clip':
-        clip(options)    
+        clipped = clip(options)
         logging.info('Clipped: %s' % str(clipped))
 
     if command == 'load':

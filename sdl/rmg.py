@@ -105,7 +105,7 @@ def truncate(x, digits):
         digits - the number of places of precision to the right of the decimal
     """
     FORMAT = """.%sf"""
-    format_x = FORMAT % int(digits)
+    format_x = FORMAT % str(int(digits))
     return format(x, format_x)
 
 def createPlacemark(key, polygon):
