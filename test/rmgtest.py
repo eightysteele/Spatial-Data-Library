@@ -87,18 +87,42 @@ class RMGTest(unittest.TestCase):
         self.assertEqual(mid_lat,center.lat)
 
     def test_tile_count(self):
-        nwcorner = Point(0, 90)
-        secorner = Point(30, 60)
+        # WorldClim Tile 00 cell count
+        nwcorner = Point(-180, 90)
+        secorner = Point(-150, 60)
         cells_per_degree = 120
-        cellcount = RMGCell.tile_cellcount(nwcorner, secorner, cells_per_degree, a, inverse_flattening)
+        tile = RMGTile(nwcorner, secorner, cells_per_degree)
+        cellcount = tile.cellcount()
         self.assertEqual(cellcount, 3334514)
+        # WorldClim Tile 37 cell count
+        nwcorner = Point(30, 0)
+        secorner = Point(60, -30)
+        cells_per_degree = 120
+        tile = RMGTile(nwcorner, secorner, cells_per_degree)
+        cellcount = tile.cellcount()
+        self.assertEqual(cellcount, 12308553)
+        #Global cell count 120 cells per degree
+        nwcorner = Point(-180, 90)
+        secorner = Point(180, -90)
+        cells_per_degree = 120
+        tile = RMGTile(nwcorner, secorner, cells_per_degree)
+        cellcount = tile.cellcount()
+        self.assertEqual(cellcount, 592726068)
+        #Global cell count 1 cells per degree
+        nwcorner = Point(-180, 90)
+        secorner = Point(180, -90)
+        cells_per_degree = 1
+        tile = RMGTile(nwcorner, secorner, cells_per_degree)
+        cellcount = tile.cellcount()
+        self.assertEqual(cellcount, 41246)
         
     def test_tile_kml(self):
         nwcorner = Point(-180,90)
         secorner = Point(-90,0)
         cells_per_degree = 0.1
         digits = 7
-        print RMGCell.tileKml(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening)
+        tile = RMGTile(nwcorner, secorner, cells_per_degree, digits)
+        print tile.kml()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)

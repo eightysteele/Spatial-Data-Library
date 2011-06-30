@@ -22,7 +22,7 @@ WorldClim environment variables to CouchDB using the Rectangular Mesh Grid (RMG)
 """
 
 import csv
-import couchdb
+#import couchdb
 import logging
 import math
 from optparse import OptionParser
@@ -31,39 +31,23 @@ import random
 import shapefile
 import shlex
 import subprocess
-import rmg
+from rmg import *
 
-#CELLS_PER_DEGREE = 120
-#TILE_WIDTH_DEGREES = 30
-#
-#DEGREE_DIGITS = 7
-#FORMAT = """.%sf"""
-#
-#def lng180(lng):
-#    '''Given a longitude in degrees, returns a longitude in degrees between {-180, 180].'''
-#    newlng = float(lng)
-#    if newlng <= -180:
-#        newlng = newlng + 360
-#    elif newlng > 180:
-#        newlng = newlng - 360
-#    return float(truncate(newlng, DEGREE_DIGITS))
-#
-#def truncate(x, digits):
-#    '''Set the representational precision of x to digits places to the right of the decimal.'''
-#    format_x = FORMAT % digits
-#    return format(x,format_x)
-#
-#def getpolygon(lng, lat, cells_per_degree = CELLS_PER_DEGREE):
-#    '''Returns list of points in lng, lat order for a cell whose center is 
-#    given by lng, lat on a grid with resolution defined in the same degrees.
-#    Assumes math.fabs(lat) < 90
-#    Example: 30 sec grid has 120 cells per degree and resolution = 0.0083333'''
-#    resolution = 1.0/cells_per_degree
-#    nw = [lng180(lng-resolution/2), lat+resolution/2]
-#    ne = [lng180(lng+resolution/2), lat+resolution/2]
-#    se = [lng180(lng+resolution/2), lat-resolution/2]
-#    sw = [lng180(lng-resolution/2), lat-resolution/2]
-#    return [nw, ne, se, sw]
+def clip(options):
+    nw = map(float, options.nwcorner.split(','))
+    se = map(float, options.secorner.split(','))
+    nwcorner = Point(nw[0], nw[1])
+    secorner = Point(se[0], se[1])
+    cells_per_degree = float(options.cells_per_degree)
+    tile = Tile(nwcorner, secorner, cells_per_degree)
+    clipped = tile.clip(options.gadm, options.workspace)
+    return clipped
+
+def load(options, clipped):
+    clipped.bulkload2couchdb(options)
+
+def getpolygon(key, cells_per_degree=CELLS_PER_DEGREE, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
+    return RMGCell.polygon(key, cells_per_degree, digits, a, inverse_flattening)
 
 class Variable(object):
     """An environmental variable backed by a .bil and a .hdr file."""
@@ -89,7 +73,6 @@ class Variable(object):
             elif line.startswith('MinY'):
                 self.ymin = int(line.split()[1].strip())
 
-
 class TileCell(object):
     """A cell for a Tile described by a polygon with geographic coordinates."""
 
@@ -98,9 +81,9 @@ class TileCell(object):
 
         Arguments:
         """
-        self.cells_per_degree
         self.key = key
         self.polygon = polygon
+        self.cells_per_degree = cells_per_degree
         
     def __str__(self):
         return str(self.__dict__)
@@ -108,38 +91,26 @@ class TileCell(object):
 class Tile(object):
     """A geographic tile defined by a geographic coordinate bounding box."""
 
-    def __init__(self, nwcorner, secorner, filename=None):
+    def __init__(self, nwcorner, secorner, cells_per_degree = CELLS_PER_DEGREE, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING, filename=None):
         """Tile constructor.
 
         Arguments:
             nwcorner - the starting Point in the northwest corner of the Tile.
             secorner - the ending Point in the southeast corner of the Tile.
+            cells_per_degree - the desired resolution of the grid
+            digits - the number of digits of precision to retain in the coordinates
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            inverse_flattening - the inverse of the ellipsoid's flattening parameter 
+                (298.257223563 for WGS84)
             filename - The name of the input Shapefile for the Tile.
         """
-        self.nwcorner = nwcorncer
+        self.nwcorner = nwcorner
         self.secorner = secorner
+        self.cells_per_degree = cells_per_degree
+        self.digits = digits
+        self.a = a
+        self.inverse_flattening = inverse_flattening
         self.filename = filename
-        self.north = nwcorner.lat
-        self.south = secorner.lat
-        self.west = nwcorner.lng
-        self.east = secorner.lng
-
-#    def _getcellkey(self, tilerow, tilecol, cells_per_degree = CELLS_PER_DEGREE):
-#        """Gets the global cell key."""
-#        x = self.col * self.width * cells_per_degree + tilecol
-#        y = self.row * self.width * cells_per_degree + tilerow
-#        return '%s-%s' % (x, y)
-
-#    def _getcellpolygon(self, lat, lng, cells_per_degree = CELLS_PER_DEGREE):
-#        """Gets the cell polygon given the cells per degree and the lat, lng of the NW corner."""
-#        cellres = 1.0/cells_per_degree
-#        return [
-#                 [lng, lat],                       
-#                 [lng + cellres, lat],
-#                 [lng + cellres, lat - cellres],
-#                 [lng, lat - cellres],
-#                 [lng, lat]
-#               ]
 
     def __str__(self):
         return str(self.__dict__)
@@ -170,12 +141,10 @@ class Tile(object):
         #dr.next() # Skip header
         for row in dr:
             cellkey = row.get('CellKey')
-            x = float(row.get('x'))
-            y = float(row.get('y'))
             if not cells.has_key(cellkey):
                 cells[cellkey] = {
                     '_id': cellkey, 
-                    'coords': getpolygon(x, y, cells_per_degree),
+                    'coords': getpolygon(cellkey, cells_per_degree),
                     'vars': {}
                     }            
             varname = row.get('RID').split('_')[0]
@@ -186,7 +155,7 @@ class Tile(object):
 
     @classmethod
     def intersect(cls, shapefile, options):      
-        """Intesects features in a shapefile with variables via starspan."""
+        """Intersects features in a shapefile with variables via starspan."""
         variables = [os.path.join(options.vardir, x) \
                          for x in os.listdir(options.vardir) \
                          if x.endswith('.bil')]
@@ -217,7 +186,7 @@ class Tile(object):
         cells_per_degree = float(options.cells_per_degree)
         cells = []
         count = 0
-        for cell in self.getcells(cells_per_degree):
+        for cell in self.getcells():
             if count >= batchsize:
                 self._clip2intersect2couchdb(cells, options, batchnum)
                 count = 0
@@ -238,11 +207,11 @@ class Tile(object):
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
-        return Tile(self.row, self.col, clipped)
+        return Tile(self.nwcorner, self.swcorner, self.cells_per_degree, clipped)
 
     def writeshapefile(self, workspace):
         """Writes tile shapefile in workspace directory and returns filename."""
-        cell = self.getcells(30.0).next()            
+        cell = self.getcells().next()            
         fout = os.path.join(workspace, cell.key)
         w = shapefile.Writer(shapefile.POLYGON)
         w.field('CellKey','C','255')
@@ -251,12 +220,8 @@ class Tile(object):
         w.save(fout)        
         return '%s.shp' % fout
 
-    def writemultishapefiles(self):
-        pass
-
-    @staticmethod
-    def tile(nwcorner, secorner, cells_per_degree=CELLS_PER_DEGREE, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
-        """Returns a set of polygons for cells intersecting a bounding box.
+    def getcells(self):
+        """Iterates over a set of polygons for cells intersecting a bounding box.
 
         Arguments:
             nwcorner - the starting Point in the northwest corner of the bounding box
@@ -267,53 +232,36 @@ class Tile(object):
             inverse_flattening - the inverse of the ellipsoid's flattening parameter 
                 (298.257223563 for WGS84)
         """ 
-        north = nwcorner.lat
-        west = nwcorner.lng
-        south = secorner.lat
-        east = secorner.lng
+        north = self.nwcorner.lat
+        west = self.nwcorner.lng
+        south = self.secorner.lat
+        east = self.secorner.lng
         lng = west
         lat = north
         # key for the NW corner of the tile
-        key = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
+        key = RMGCell.key(lng, lat, self.cells_per_degree, self.a, self.inverse_flattening)
         indexes = key.split('-')
         x_index = int(indexes[0])
         y_index = int(indexes[1])
 
         while lat >= south:
             while lng <= east:
-                polygon = [ [float(x[0]), float(x[1])] for x in RMGCell.polygon(key, cells_per_degree, digits, a, inverse_flattening) ]
-                yield TileCell(key, polygon, cells_per_degree)
+                key = str(x_index)+'-'+str(y_index)
+                polygon = tuple([(float(x[0]), float(x[1])) for x in RMGCell.polygon(key, self.cells_per_degree, self.digits, self.a, self.inverse_flattening)])
+                yield TileCell(key, polygon, self.cells_per_degree)
                 x_index += 1
+                lng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening)
             lng = west
+            x_index = int(indexes[0])
             y_index += 1
-
-#    def getcells(self, cells_per_degree = CELLS_PER_DEGREE):
-#        """Iterates over all cells in the tile at the given cell resolution.
-#
-#        Arguments:
-#            cells_per_degree - The number of cells in one degree of lat or lng.
-#        """
-#        cellres = 1.0/cells_per_degree
-#        lng = self.west
-#        lat = self.north        
-#        row = 0
-#        col = 0
-#        while lng < self.east:
-#            row = 0
-#            while lat > self.south:
-#                yield TileCell(
-#                    self._getcellkey(row, col, cells_per_degree), 
-#                    self._getcellpolygon(lat, lng, cells_per_degree),
-#                    cells_per_degree)
-#                lat -= cellres
-#                row += 1
-#            lat = self.north
-#            lng += cellres
-#            col += 1
+            lat = RMGCell.north(y_index, self.cells_per_degree)
 
 def _getoptions():
     """Parses command line options and returns them."""
-    parser = OptionParser()    
+    parser = OptionParser()
+    parser.add_option("-c", "--command", dest="command",
+                      help="SDL command",
+                      default=None)
     parser.add_option("-v", 
                       "--vardir", 
                       dest="vardir",
@@ -324,7 +272,7 @@ def _getoptions():
                       dest="workspace",
                       help="The workspace directory for temporary files.",
                       default=None)
-    parser.add_option("-c", 
+    parser.add_option("-u", 
                       "--couchurl", 
                       dest="couchurl",
                       help="The CouchDB URL.",
@@ -334,38 +282,32 @@ def _getoptions():
                       dest="gadm",
                       help="The GADM shapefile.",
                       default=None)
-    parser.add_option("-t", 
-                      "--tile", 
-                      dest="tile",
-                      help="The Worldclim tile number (rowcol).",
+    parser.add_option("-f", "--nwcorner", dest="nwcorner",
+                      help="NW corner of bounding box",
                       default=None)
+    parser.add_option("-t", "--secorner", dest="secorner",
+                      help="SW corner of bounding box",
+                      default=None)
+    parser.add_option("-n", "--cells-per-degree", dest="cells_per_degree",
+                      help="Number of cells per degree",
+                      default=CELLS_PER_DEGREE)
     parser.add_option("-b", 
                       "--batchsize", 
                       dest="batchsize",
                       help="The batch size (default 25,000)",
                       default=None)
-    parser.add_option("-n", 
-                      "--cells-per-degree", 
-                      dest="cells_per_degree",
-                      help="The number of cells in a degree",
-                      default=CELLS_PER_DEGREE)
-    parser.add_option("-d", 
-                      "--dry-run", 
-                      dest="dry_run",
-                      help="Boolean to run without couchdb.",
-                      default=False)
-
     return parser.parse_args()[0]
-
-def load(options):    
-    row = int(options.tile.split(',')[0])
-    col = int(options.tile.split(',')[1])
-    tile = Tile(row, col)
-    clipped = tile.clip(options.gadm, options.workspace)
-    logging.info('Clipped: %s' % str(clipped))
-    clipped.bulkload2couchdb(options)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     options = _getoptions()
-    load(options)    
+    command = options.command.lower()
+    
+    if command == 'clip':
+        clip(options)    
+        logging.info('Clipped: %s' % str(clipped))
+
+    if command == 'load':
+        clipped = clip(options)    
+        logging.info('Clipped: %s' % str(clipped))
+        load(options, clipped)    

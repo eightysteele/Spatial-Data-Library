@@ -105,7 +105,7 @@ def truncate(x, digits):
         digits - the number of places of precision to the right of the decimal
     """
     FORMAT = """.%sf"""
-    format_x = FORMAT % digits
+    format_x = FORMAT % int(digits)
     return format(x, format_x)
 
 def createPlacemark(key, polygon):
@@ -435,81 +435,7 @@ class RMGCell(object):
         s = truncate(RMGCell.south(y_index, cells_per_degree), digits)
         w = truncate(RMGCell.west(x_index, y_index, cells_per_degree, a, inverse_flattening), digits)
         e = truncate(RMGCell.east(x_index, y_index, cells_per_degree, a, inverse_flattening), digits)
-        return [(n, w), (s, w), (s, e), (n, e), (n, w)]
-
-    @staticmethod
-    def tile(nwcorner, secorner, cells_per_degree=CELLS_PER_DEGREE, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
-        """Returns a set of polygons for cells intersecting a bounding box.
-
-        Arguments:
-            nwcorner - the starting Point in the northwest corner of the bounding box
-            secorner - the ending Point in the southeast corner of the bounding box
-            cells_per_degree - the desired resolution of the grid
-            digits - the number of digits of precision to retain in the coordinates
-            a - the semi-major axis of the ellipsoid for the coordinate reference system
-            inverse_flattening - the inverse of the ellipsoid's flattening parameter 
-                (298.257223563 for WGS84)
-        """ 
-        cells = set()
-        north = nwcorner.lat
-        west = nwcorner.lng
-        south = secorner.lat
-        east = secorner.lng
-        lng = west
-        lat = north
-        # key for the NW corner of the tile
-        key = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
-        indexes = key.split('-')
-        x_index = int(indexes[0])
-        y_index = int(indexes[1])
-
-        while lat >= south:
-            while lng <= east:
-                polygon = tuple([(float(x[0]), float(x[1])) for x in RMGCell.polygon(key, cells_per_degree, digits, a, inverse_flattening)])
-                cells.add(CellPolygon(key, polygon))
-                x_index += 1
-                lng = RMGCell.east(x_index, y_index, cells_per_degree, a, inverse_flattening)
-            lng = west
-            y_index += 1
-            lat = RMGCell.south(y_index, cells_per_degree)
-        return cells
-
-    @staticmethod
-    def tile_cellcount(nwcorner, secorner, cells_per_degree=CELLS_PER_DEGREE, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
-        """Returns the number of cells intersecting a bounding box.
-
-        Arguments:
-            nwcorner - the starting Point in the northwest corner of the bounding box
-            secorner - the ending Point in the southeast corner of the bounding box
-            cells_per_degree - the desired resolution of the grid
-            a - the semi-major axis of the ellipsoid for the coordinate reference system
-            inverse_flattening - the inverse of the ellipsoid's flattening parameter 
-                (298.257223563 for WGS84)
-        """ 
-        key0 = RMGCell.key(nwcorner.lng, nwcorner.lat, cells_per_degree, a, inverse_flattening)
-        key1 = RMGCell.key(secorner.lng, secorner.lat, cells_per_degree, a, inverse_flattening)
-        indexes = key0.split('-')
-        start_y_index = int(indexes[1])
-        indexes = key1.split('-')
-        end_y_index = int(indexes[1])
-        tile_width = secorner.lng - nwcorner.lng
-        cellcount = 0
-        for y_index in range(start_y_index, end_y_index):
-            cell_width = RMGCell.width(y_index, cells_per_degree, a, inverse_flattening)
-            cells_this_row = int(math.ceil(tile_width / cell_width))
-            cellcount += cells_this_row
-        return cellcount
-
-    @staticmethod
-    def tileKml(nwcorner, secorner, cells_per_degree=CELLS_PER_DEGREE, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
-        """Returns a grid of cells overlapping a bounding box, as KML."""
-        placemarks = []
-        cell_polygon_list = RMGCell.tile(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening)
-        for cell_polygon in cell_polygon_list:
-            polygon = RMGCell.polygon(cell_polygon.cellkey, cells_per_degree, digits, a, inverse_flattening)                                        
-            p = createPlacemark(cell_polygon.cellkey, polygon)
-            placemarks.append(p)
-        return KML % ' '.join(placemarks)
+        return [(w, n), (w, s), (e, s), (e, n), (w, n)]
 
     def __init__(self, x_index, y_index):
         self._x_index = x_index
@@ -545,13 +471,102 @@ class RMGCell(object):
             return - 1
         else: return 0
 
+class RMGTile(object):
+    """A geographic tile defined by a geographic coordinate bounding box."""
+
+    def __init__(self, nwcorner, secorner, cells_per_degree = CELLS_PER_DEGREE, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING, filename=None):
+        """RMGTile constructor.
+
+        Arguments:
+            nwcorner - the starting Point in the northwest corner of the RMGTile.
+            secorner - the ending Point in the southeast corner of the RMGTile.
+            cells_per_degree - the desired resolution of the grid
+            digits - the number of digits of precision to retain in the coordinates
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            inverse_flattening - the inverse of the ellipsoid's flattening parameter 
+                (298.257223563 for WGS84)
+            filename - The name of the input Shapefile for the RMGTile.
+        """
+        self.nwcorner = nwcorner
+        self.secorner = secorner
+        self.cells_per_degree = cells_per_degree
+        self.digits = digits
+        self.a = a
+        self.inverse_flattening = inverse_flattening
+        self.filename = filename
+
+    def getcells(self):
+        """Returns a set of polygons for cells intersecting the bounding box of the RMGTile.
+
+        Arguments:
+            None
+        """ 
+        cells = set()
+        north = self.nwcorner.lat
+        west = self.nwcorner.lng
+        south = self.secorner.lat
+        east = self.secorner.lng
+        lng = west
+        lat = north
+        # key for the NW corner of the tile
+        key = RMGCell.key(lng, lat, self.cells_per_degree, self.a, self.inverse_flattening)
+        indexes = key.split('-')
+        x_index = int(indexes[0])
+        y_index = int(indexes[1])
+
+        while lat >= south:
+            while lng <= east:
+                key = str(x_index)+'-'+str(y_index)
+                polygon = tuple([(float(x[0]), float(x[1])) for x in RMGCell.polygon(key, self.cells_per_degree, self.digits, self.a, self.inverse_flattening)])
+                cells.add(CellPolygon(key, polygon))
+                x_index += 1
+                lng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening)
+            lng = west
+            x_index = int(indexes[0])
+            y_index += 1
+            lat = RMGCell.north(y_index, self.cells_per_degree)
+        return cells
+
+    def cellcount(self):
+        """Returns the number of cells intersecting the bounding box of the RMGTile.
+
+        Arguments:
+            None
+        """ 
+        key0 = RMGCell.key(self.nwcorner.lng, self.nwcorner.lat, self.cells_per_degree, self.a, self.inverse_flattening)
+        key1 = RMGCell.key(self.secorner.lng, self.secorner.lat, self.cells_per_degree, self.a, self.inverse_flattening)
+        indexes = key0.split('-')
+        start_y_index = int(indexes[1])
+        indexes = key1.split('-')
+        end_y_index = int(indexes[1])
+        tile_width = self.secorner.lng - self.nwcorner.lng
+        cellcount = 0
+        for y_index in range(start_y_index, end_y_index):
+            cell_width = RMGCell.width(y_index, self.cells_per_degree, self.a, self.inverse_flattening)
+            cells_this_row = int(math.ceil(tile_width / cell_width))
+            cellcount += cells_this_row
+        return cellcount
+
+    def kml(self):
+        """Returns a KML for the grid of cells intersecting the RMGTile.
+
+        Arguments:
+            None
+        """
+        placemarks = []
+        cell_polygon_list = self.getcells()
+        for cell_polygon in cell_polygon_list:
+            polygon = RMGCell.polygon(cell_polygon.cellkey, self.cells_per_degree, self.digits, self.a, self.inverse_flattening)                                        
+            p = createPlacemark(cell_polygon.cellkey, polygon)
+            placemarks.append(p)
+        return KML % ' '.join(placemarks)
+
+    def __str__(self):
+        return str(self.__dict__)
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)    
     
-    f = open('python.out', 'w')
-    f.flush()
-    f.close()
-
     parser = OptionParser()
     parser.add_option("-c", "--command", dest="command",
                       help="RMG command",
@@ -587,6 +602,15 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
     command = options.command.lower()
     
+    if command == 'tilecellcount':
+        nw = map(float, options.nwcorner.split(','))
+        se = map(float, options.secorner.split(','))
+        nwcorner = Point(nw[0], nw[1])
+        secorner = Point(se[0], se[1])
+        cells_per_degree = float(options.cells_per_degree)
+        a = float(options.a)
+        inverse_flattening = float(options.inverse_flattening)
+        print RMGCell.tile_cellcount(nwcorner, secorner, cells_per_degree, a, inverse_flattening)        
     if command == 'distances':
         lat = float(options.y)
         a = float(options.a)
@@ -623,26 +647,27 @@ if __name__ == '__main__':
         inverse_flattening = float(options.inverse_flattening)
         print RMGCell.polygon(key, cells_per_degree, digits, a, inverse_flattening)        
     if command == 'tile':
-        nwcorner = map(float, options.nwcorner.split(','))
-        secorner = map(float, options.secorner.split(','))
+        nw = map(float, options.nwcorner.split(','))
+        se = map(float, options.secorner.split(','))
+        nwcorner = Point(nw[0], nw[1])
+        secorner = Point(se[0], se[1])
         cells_per_degree = float(options.cells_per_degree)
         digits = float(options.digits)
         a = float(options.a)
         inverse_flattening = float(options.inverse_flattening)
-        print RMGCell.tile(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening)        
-    if command == 'tilecellcount':
-        nwcorner = map(float, options.nwcorner.split(','))
-        secorner = map(float, options.secorner.split(','))
-        cells_per_degree = float(options.cells_per_degree)
-        digits = float(options.digits)
-        a = float(options.a)
-        inverse_flattening = float(options.inverse_flattening)
-        print RMGCell.tile_cellcount(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening)        
+        tile = RMGTile(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening)
+        print tile.getcells()        
     if command == 'tilekml':
-        nwcorner = map(float, options.nwcorner.split(','))
-        secorner = map(float, options.secorner.split(','))
+        nw = map(float, options.nwcorner.split(','))
+        se = map(float, options.secorner.split(','))
+        nwcorner = Point(nw[0], nw[1])
+        secorner = Point(se[0], se[1])
         cells_per_degree = float(options.cells_per_degree)
         digits = float(options.digits)
         a = float(options.a)
         inverse_flattening = float(options.inverse_flattening)
+        f = open('python.out', 'w')
+        f.write(RMGCell.tileKml(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening))
+        f.flush()
+        f.close()
         print RMGCell.tileKml(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening)
