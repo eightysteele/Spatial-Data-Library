@@ -96,6 +96,15 @@ KML = u"""<?xml version="1.0" encoding="UTF-8"?>
     </Document>                                                                                                                                               
 </kml>"""
 
+def lng180(lng):
+    """Returns a longitude in degrees between {-180, 180] given a longitude in degrees."""
+    newlng = float(lng)
+    if lng < -180:
+        return lng + 360
+    if newlng >= 180:
+        return lng - 360
+    return lng
+
 def truncate(x, digits):
     """Returns a string representation of x including a number of places to the right of 
     the decimal equal to digits.
@@ -239,6 +248,17 @@ class RMGCell(object):
         return columns        
 
     @staticmethod
+    def lat2y(lat, cells_per_degree=CELLS_PER_DEGREE):
+        """Returns the y cell index for a cell given a latitude.
+
+        Arguments:
+            lat - the latitude of a Point for which the y index is sought
+            cells_per_degree - the desired resolution of the grid
+        """
+        y_index = math.floor((90.0 - lat) * cells_per_degree)
+        return int(y_index)
+
+    @staticmethod
     def key(lng, lat, cells_per_degree=CELLS_PER_DEGREE, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
         """Returns the unique identifier for a cell given a longitude, latitude, and parameters 
         of the ellipsoid on which this coordinate occurs.
@@ -251,10 +271,11 @@ class RMGCell(object):
                 (298.257223563 for WGS84)
             cells_per_degree - the desired resolution of the grid
         """
-        lngdpd, latdpd = RMGCell.distances_per_degree(lat, a, inverse_flattening)
+        y_index = RMGCell.lat2y(lat, cells_per_degree)
+        midlat = RMGCell.mid_lat(y_index, cells_per_degree)
+        lngdpd, latdpd = RMGCell.distances_per_degree(midlat, a, inverse_flattening)
         area = RMGCell.area(cells_per_degree, a)
         y_dist = latdpd / cells_per_degree # y side of cell in units of a
-        y_index = math.floor((90.0 - lat) * cells_per_degree)
         if lat <= -90:
             y_index -= 1
         x_dist = area / y_dist
@@ -501,30 +522,56 @@ class RMGTile(object):
         Arguments:
             None
         """ 
+        # TODO: Deal with the case of cells crossing lng = 180
+        # TODO: Deal with the issue of cells crossing outside Worldclim tiles
         cells = set()
         north = self.nwcorner.lat
         west = self.nwcorner.lng
         south = self.secorner.lat
         east = self.secorner.lng
+        crosses_180 = False
+        if west > east:
+            crosses_180 = True
+            crossed = False
+            west -= 360
         lng = west
         lat = north
         # key for the NW corner of the tile
-        key = RMGCell.key(lng, lat, self.cells_per_degree, self.a, self.inverse_flattening)
+        key = RMGCell.key(lng180(lng), lat, self.cells_per_degree, self.a, self.inverse_flattening)
         indexes = key.split('-')
         x_index = int(indexes[0])
         y_index = int(indexes[1])
 
-        while lat >= south:
-            while lng <= east:
+        while lat > south:
+            while lng < east:
                 key = str(x_index)+'-'+str(y_index)
                 polygon = tuple([(float(x[0]), float(x[1])) for x in RMGCell.polygon(key, self.cells_per_degree, self.digits, self.a, self.inverse_flattening)])
                 cells.add(CellPolygon(key, polygon))
-                x_index += 1
-                lng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening)
+                print "x: "+str(x_index)+" y: "+str(y_index)+" lat: "+str(lat)+" lng: "+str(lng)
+                if crosses_180 == True and crossed == False:
+                    elng = RMGCell.east(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
+                    wlng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
+                    if elng > east:
+                        crossed = True
+                        lng = east
+                    elif wlng > -180:
+                        crossed = True
+                        x_index = 0
+                        lng = -180
+                    else:
+                        x_index += 1
+                        lng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
+                        
+                else:
+                    x_index += 1
+                    lng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening)
+            crossed = False
             lng = west
-            x_index = int(indexes[0])
             y_index += 1
             lat = RMGCell.north(y_index, self.cells_per_degree)
+            key = RMGCell.key(lng180(lng), lat, self.cells_per_degree, self.a, self.inverse_flattening)
+            indexes = key.split('-')
+            x_index = int(indexes[0])
         return cells
 
     def cellcount(self):
@@ -666,8 +713,9 @@ if __name__ == '__main__':
         digits = float(options.digits)
         a = float(options.a)
         inverse_flattening = float(options.inverse_flattening)
+        tile = RMGTile(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening)
         f = open('python.out', 'w')
-        f.write(RMGCell.tileKml(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening))
+        f.write(tile.kml())
         f.flush()
         f.close()
-        print RMGCell.tileKml(nwcorner, secorner, cells_per_degree, digits, a, inverse_flattening)
+        print tile.kml()

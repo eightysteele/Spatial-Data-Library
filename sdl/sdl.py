@@ -22,7 +22,7 @@ WorldClim environment variables to CouchDB using the Rectangular Mesh Grid (RMG)
 """
 
 import csv
-import couchdb
+#import couchdb
 import logging
 import math
 from optparse import OptionParser

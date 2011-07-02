@@ -51,6 +51,20 @@ class RMGTest(unittest.TestCase):
         columns = RMGCell.column_count(lat, cells_per_degree, a, inverse_flattening)
         self.assertEqual(columns,3)
 
+    def test_lat2y(self):
+        cells_per_degree = 1
+        lat = 90
+        y_index = RMGCell.lat2y(lat, cells_per_degree)
+        self.assertEqual(y_index, 0)
+
+        lat = 0
+        y_index = RMGCell.lat2y(lat, cells_per_degree)
+        self.assertEqual(y_index, 90)
+
+        lat = -90
+        y_index = RMGCell.lat2y(lat, cells_per_degree)
+        self.assertEqual(y_index, 180)
+
     def test_key0_0(self):
         lng = -180
         lat = 90
@@ -70,7 +84,7 @@ class RMGTest(unittest.TestCase):
         cells_per_degree = 1
         lat = 90 - 1.0/cells_per_degree
         key = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
-        self.assertEqual(key,"6-1")
+        self.assertEqual(key,"9-1")
 
     def test_center(self):
         lat = 0
@@ -124,12 +138,32 @@ class RMGTest(unittest.TestCase):
         print tile
         
     def test_tile_kml(self):
-        nwcorner = Point(-180,90)
-        secorner = Point(-90,0)
+#        nwcorner = Point(30,0)
+#        secorner = Point(60,-30)
+        nwcorner = Point(170,90)
+        secorner = Point(-170,0)
         cells_per_degree = 0.1
         digits = 7
         tile = RMGTile(nwcorner, secorner, cells_per_degree, digits)
-#        print tile.kml()
+        print tile.kml()
+
+    def test_cell(self):
+        cells_per_degree = 0.1
+        lat = -20
+        lng = 30
+        key = RMGCell.key(lng, lat, cells_per_degree)
+        print "lat: "+str(lat) +" lng: "+str(lng) + " key: "+key
+
+        key="18-11"
+        polygon = RMGCell.polygon(key, cells_per_degree)
+        print polygon
+
+        for corner in RMGCell.polygon(key, cells_per_degree):
+            lng = float(corner[0])
+            lat = float(corner[1])
+            key = RMGCell.key(lng, lat, cells_per_degree)
+            polygon = RMGCell.polygon(key, cells_per_degree)
+            print key+" "+str(polygon)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
