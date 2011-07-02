@@ -236,25 +236,48 @@ class Tile(object):
         west = self.nwcorner.lng
         south = self.secorner.lat
         east = self.secorner.lng
+        crosses_180 = False
+        if west > east:
+            crosses_180 = True
+            crossed = False
+            west -= 360
         lng = west
         lat = north
         # key for the NW corner of the tile
-        key = RMGCell.key(lng, lat, self.cells_per_degree, self.a, self.inverse_flattening)
+        key = RMGCell.key(lng180(lng), lat, self.cells_per_degree, self.a, self.inverse_flattening)
         indexes = key.split('-')
         x_index = int(indexes[0])
         y_index = int(indexes[1])
 
-        while lat >= south:
-            while lng <= east:
+        while lat > south:
+            while lng < east:
                 key = str(x_index)+'-'+str(y_index)
                 polygon = tuple([(float(x[0]), float(x[1])) for x in RMGCell.polygon(key, self.cells_per_degree, self.digits, self.a, self.inverse_flattening)])
                 yield TileCell(key, polygon, self.cells_per_degree)
-                x_index += 1
-                lng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening)
+                if crosses_180 == True and crossed == False:
+                    elng = RMGCell.east(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
+                    wlng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
+                    if elng > east:
+                        crossed = True
+                        lng = east
+                    elif wlng > -180:
+                        crossed = True
+                        x_index = 0
+                        lng = -180
+                    else:
+                        x_index += 1
+                        lng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
+                        
+                else:
+                    x_index += 1
+                    lng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening)
+            crossed = False
             lng = west
-            x_index = int(indexes[0])
             y_index += 1
             lat = RMGCell.north(y_index, self.cells_per_degree)
+            key = RMGCell.key(lng180(lng), lat, self.cells_per_degree, self.a, self.inverse_flattening)
+            indexes = key.split('-')
+            x_index = int(indexes[0])
 
 def _getoptions():
     """Parses command line options and returns them."""

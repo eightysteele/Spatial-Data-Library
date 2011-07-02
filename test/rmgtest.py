@@ -141,7 +141,7 @@ class RMGTest(unittest.TestCase):
 #        nwcorner = Point(30,0)
 #        secorner = Point(60,-30)
         nwcorner = Point(170,90)
-        secorner = Point(-170,0)
+        secorner = Point(170,0)
         cells_per_degree = 0.1
         digits = 7
         tile = RMGTile(nwcorner, secorner, cells_per_degree, digits)
