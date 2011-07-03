@@ -22,7 +22,8 @@ WorldClim environment variables to CouchDB using the Rectangular Mesh Grid (RMG)
 """
 
 import csv
-#import couchdb
+import time
+import couchdb
 import logging
 import math
 from optparse import OptionParser
@@ -33,20 +34,31 @@ import shlex
 import subprocess
 from rmg import *
 
-def clip(options):
+def maketile(options):
+    key = options.key
     nw = map(float, options.nwcorner.split(','))
     se = map(float, options.secorner.split(','))
     nwcorner = Point(nw[0], nw[1])
     secorner = Point(se[0], se[1])
     cells_per_degree = float(options.cells_per_degree)
-    tile = Tile(nwcorner, secorner, cells_per_degree)
+    tile = Tile(key, nwcorner, secorner, cells_per_degree)
+    return tile
+
+def clip(options):
+    key = options.key
+    nw = map(float, options.nwcorner.split(','))
+    se = map(float, options.secorner.split(','))
+    nwcorner = Point(nw[0], nw[1])
+    secorner = Point(se[0], se[1])
+    cells_per_degree = float(options.cells_per_degree)
+    tile = Tile(key, nwcorner, secorner, cells_per_degree)
     clipped = tile.clip(options.gadm, options.workspace)
     return clipped
 
 def load(options, clipped):
     clipped.bulkload2couchdb(options)
 
-def getpolygon(key, cells_per_degree=CELLS_PER_DEGREE, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
+def getpolygon(key, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
     return RMGCell.polygon(key, cells_per_degree, digits, a, inverse_flattening)
 
 class Variable(object):
@@ -76,7 +88,7 @@ class Variable(object):
 class TileCell(object):
     """A cell for a Tile described by a polygon with geographic coordinates."""
 
-    def __init__(self, key, polygon, cells_per_degree = CELLS_PER_DEGREE):
+    def __init__(self, key, polygon, cells_per_degree):
         """Constructs a TileCell.
 
         Arguments:
@@ -91,10 +103,11 @@ class TileCell(object):
 class Tile(object):
     """A geographic tile defined by a geographic coordinate bounding box."""
 
-    def __init__(self, nwcorner, secorner, cells_per_degree = CELLS_PER_DEGREE, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING, filename=None):
+    def __init__(self, key, nwcorner, secorner, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING, filename=None):
         """Tile constructor.
 
         Arguments:
+            key - identifier for the tile
             nwcorner - the starting Point in the northwest corner of the Tile.
             secorner - the ending Point in the southeast corner of the Tile.
             cells_per_degree - the desired resolution of the grid
@@ -104,6 +117,7 @@ class Tile(object):
                 (298.257223563 for WGS84)
             filename - The name of the input Shapefile for the Tile.
         """
+        self.key = key
         self.nwcorner = nwcorner
         self.secorner = secorner
         self.cells_per_degree = cells_per_degree
@@ -127,13 +141,22 @@ class Tile(object):
         w.save(filename)        
         clippedfile = Tile.clip2cell('%s.shp' % filename, self.filename)
         csvfile = Tile.intersect(clippedfile, options)
+        Tile.csv2couch(csvfile, options)
+
+    def polygon(self):
+        """Returns a polygon (list of Points) for the Tile."""
+        n = float(truncate(self.nwcorner.lat, self.digits))
+        s = float(truncate(self.secorner.lat, self.digits))
+        w = float(truncate(self.nwcorner.lng, self.digits))
+        e = float(truncate(self.secorner.lng, self.digits))
+        return [(w, n), (w, s), (e, s), (e, n), (w, n)]
+
+    @classmethod
+    def csv2couch(cls, csvfile, options):
+        t0 = time.time()
         server = couchdb.Server(options.couchurl)
         cdb = server['sdl-dev']    
         cells_per_degree = float(options.cells_per_degree)
-        Tile.csv2couch(csvfile, cdb, cells_per_degree)
-
-    @classmethod
-    def csv2couch(cls, csvfile, cdb, cells_per_degree = CELLS_PER_DEGREE):
         logging.info('Bulkloading csv file ' + csvfile)
         dr = csv.DictReader(open(csvfile, 'r'))
         cells = {}
@@ -148,10 +171,12 @@ class Tile(object):
                     'vars': {}
                     }            
             varname = row.get('RID').split('_')[0]
-            varval = row.get('Band1')
+            varval = row.get('avg_Band1')
             cells.get(cellkey).get('vars')[varname] = varval
         logging.info('Bulkloading %s documents' % len(cells))
         cdb.update(cells.values())
+        t1 = time.time()
+        logging.info('%s documents uploaded in %s' % (len(cells), t1-t0))
 
     @classmethod
     def intersect(cls, shapefile, options):      
@@ -161,7 +186,11 @@ class Tile(object):
                          if x.endswith('.bil')]
         variables = reduce(lambda x,y: '%s %s' % (x, y), variables)
         csvfile = shapefile.replace('.shp', '.csv')
-        command = 'starspan --vector %s --raster %s --csv %s' \
+#        command = 'starspan --vector %s --raster %s --csv %s' \
+#            % (shapefile, variables, csvfile)
+#Example starspan commandline call for statistics
+#starspan --vector watershed.shp --raster slope.tif --stats slope_stats.csv avg mode stdev min max
+        command = 'starspan --vector %s --raster %s --stats %s avg' \
             % (shapefile, variables, csvfile)
         logging.info(command)
         args = shlex.split(command)
@@ -199,19 +228,40 @@ class Tile(object):
             self._clip2intersect2couchdb(cells, options, batchnum)
     
     def clip(self, shapefile, workspace):
-        """Clips shapefile against tile and returns clipped Tile object."""
+        """Returns a Tile clipped by shapefile.
+        
+        Arguments:
+            shapefile - the shape file with which to clip the Tile
+            workspace - the directory to store the clipped shape file
+        """
         ogr2ogr = '/usr/local/bin/ogr2ogr'
-        this = self.writeshapefile(workspace)
+        this = self.writetileshapefile(workspace)
         clipped = this.replace('.shp', '-clipped.shp')
         command = '%s -clipsrc %s %s %s' % (ogr2ogr, this, clipped, shapefile)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
-        return Tile(self.nwcorner, self.secorner, self.cells_per_degree, self.digits, self.a, self.inverse_flattening, clipped)
+        return Tile(self.key, self.nwcorner, self.secorner, self.cells_per_degree, self.digits, self.a, self.inverse_flattening, clipped)
+
+    def writetileshapefile(self, workspace):
+        """Writes a shapefile for the Tile the filename.
+        
+        Arguments:
+            workspace - the directory to store the clipped shape file
+            """
+        fout = os.path.join(workspace, self.key)
+        w = shapefile.Writer(shapefile.POLYGON)
+        w.field('TileKey','C','255')
+        w.poly(parts=[self.polygon()])
+        w.record(TileKey=self.key)
+        w.save(fout)        
+        return '%s.shp' % fout
 
     def writeshapefile(self, workspace):
         """Writes tile shapefile in workspace directory and returns filename."""
-        cell = self.getcells().next()            
+        cell = self.getcells().next()
+        cellinfo = 'Cell: %s' % (cell)
+        logging.info(cellinfo)
         fout = os.path.join(workspace, cell.key)
         w = shapefile.Writer(shapefile.POLYGON)
         w.field('CellKey','C','255')
@@ -221,17 +271,7 @@ class Tile(object):
         return '%s.shp' % fout
 
     def getcells(self):
-        """Iterates over a set of polygons for cells intersecting a bounding box.
-
-        Arguments:
-            nwcorner - the starting Point in the northwest corner of the bounding box
-            secorner - the ending Point in the southeast corner of the bounding box
-            cells_per_degree - the desired resolution of the grid
-            digits - the number of digits of precision to retain in the coordinates
-            a - the semi-major axis of the ellipsoid for the coordinate reference system
-            inverse_flattening - the inverse of the ellipsoid's flattening parameter 
-                (298.257223563 for WGS84)
-        """ 
+        """Iterates over a set of polygons for cells intersecting a bounding box.""" 
         north = self.nwcorner.lat
         west = self.nwcorner.lng
         south = self.secorner.lat
@@ -253,6 +293,8 @@ class Tile(object):
             while lng < east:
                 key = str(x_index)+'-'+str(y_index)
                 polygon = tuple([(float(x[0]), float(x[1])) for x in RMGCell.polygon(key, self.cells_per_degree, self.digits, self.a, self.inverse_flattening)])
+                yieldingthis = 'Yield CellKey=%s: lat: %s lng: %s' % (key, lat, lng)
+                logging.info(yieldingthis)
                 yield TileCell(key, polygon, self.cells_per_degree)
                 if crosses_180 == True and crossed == False:
                     elng = RMGCell.east(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
@@ -295,6 +337,11 @@ def _getoptions():
                       dest="workspace",
                       help="The workspace directory for temporary files.",
                       default=None)
+    parser.add_option("-p", 
+                      "--csvfile", 
+                      dest="csvfile",
+                      help="A clipped variables csv file to intersect and load.",
+                      default=None)
     parser.add_option("-u", 
                       "--couchurl", 
                       dest="couchurl",
@@ -305,6 +352,9 @@ def _getoptions():
                       dest="gadm",
                       help="The GADM shapefile.",
                       default=None)
+    parser.add_option("-k", "--key", dest="key",
+                      help="Identifier for the Tile",
+                      default=None)
     parser.add_option("-f", "--nwcorner", dest="nwcorner",
                       help="NW corner of bounding box",
                       default=None)
@@ -313,7 +363,7 @@ def _getoptions():
                       default=None)
     parser.add_option("-n", "--cells-per-degree", dest="cells_per_degree",
                       help="Number of cells per degree",
-                      default=CELLS_PER_DEGREE)
+                      default=None)
     parser.add_option("-b", 
                       "--batchsize", 
                       dest="batchsize",
@@ -329,6 +379,12 @@ if __name__ == '__main__':
     if command == 'clip':
         clipped = clip(options)
         logging.info('Clipped: %s' % str(clipped))
+
+    if command == 'csv2couchdb':
+        tile = maketile(options)
+        csvfile = os.path.join(options.workspace, options.csvfile)
+        tile.csv2couch(csvfile, options)
+        logging.info('Finished command csv2couch.')
 
     if command == 'load':
         clipped = clip(options)    
