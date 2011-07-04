@@ -61,6 +61,13 @@ def load(options, clipped):
 def getpolygon(key, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
     return RMGCell.polygon(key, cells_per_degree, digits, a, inverse_flattening)
 
+def translatevariable(varname, varval):
+    newval = float(varval)
+    if newval > 55537: # Actual value is a negative number greater than the nodata value of -9999
+        newval = newval - 65536
+    newval = truncate(newval,0)
+    return newval
+
 class Variable(object):
     """An environmental variable backed by a .bil and a .hdr file."""
 
@@ -153,6 +160,7 @@ class Tile(object):
 
     @classmethod
     def csv2couch(cls, csvfile, options):
+        """Loads values from csv file to couchdb."""
         t0 = time.time()
         server = couchdb.Server(options.couchurl)
         cdb = server['sdl-dev']    
@@ -172,7 +180,7 @@ class Tile(object):
                     }            
             varname = row.get('RID').split('_')[0]
             varval = row.get('avg_Band1')
-            cells.get(cellkey).get('vars')[varname] = varval
+            cells.get(cellkey).get('vars')[varname] = translatevariable(varname, varval)
         logging.info('Bulkloading %s documents' % len(cells))
         cdb.update(cells.values())
         t1 = time.time()
@@ -181,35 +189,39 @@ class Tile(object):
     @classmethod
     def intersect(cls, shapefile, options):      
         """Intersects features in a shapefile with variables via starspan."""
+        t0 = time.time()
         variables = [os.path.join(options.vardir, x) \
                          for x in os.listdir(options.vardir) \
                          if x.endswith('.bil')]
         variables = reduce(lambda x,y: '%s %s' % (x, y), variables)
         csvfile = shapefile.replace('.shp', '.csv')
-#        command = 'starspan --vector %s --raster %s --csv %s' \
-#            % (shapefile, variables, csvfile)
-#Example starspan commandline call for statistics
-#starspan --vector watershed.shp --raster slope.tif --stats slope_stats.csv avg mode stdev min max
-        command = 'starspan --vector %s --raster %s --stats %s avg' \
+        # Call starspan requesting mean of variable, exclusing nodata values (-9999 in the file is the same as 55537)
+        command = 'starspan --vector %s --raster %s --stats %s avg --nodata 55537' \
             % (shapefile, variables, csvfile)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
+        t1 = time.time()
+        logging.info('starspan statistics finished  in %s' % (t1-t0) )
         return csvfile
         
     @classmethod
     def clip2cell(cls, src, shapefile):
         """Clips src by shapefile and returns clipped shapefile name."""
+        t0 = time.time()
         ogr2ogr = '/usr/local/bin/ogr2ogr'
         clipped = src.replace('.shp', '-clipped.shp')
         command = '%s -clipsrc %s %s %s' % (ogr2ogr, shapefile, clipped, src)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
+        t1 = time.time()
+        logging.info('%s clipped by %s in %s' % (src, shapefile, t1-t0))
         return clipped
                 
     def bulkload2couchdb(self, options):
         """Bulkloads the tile to CouchDB using command line options."""
+        t0 = time.time()
         batchsize = int(options.batchsize)
         batchnum = 0
         cells_per_degree = float(options.cells_per_degree)
@@ -226,6 +238,8 @@ class Tile(object):
             count += 1
         if count > 0:
             self._clip2intersect2couchdb(cells, options, batchnum)
+        t1 = time.time()
+        logging.info('Total elapsed time to load: %s' % (t1-t0))
     
     def clip(self, shapefile, workspace):
         """Returns a Tile clipped by shapefile.
@@ -234,6 +248,7 @@ class Tile(object):
             shapefile - the shape file with which to clip the Tile
             workspace - the directory to store the clipped shape file
         """
+        t0 = time.time()
         ogr2ogr = '/usr/local/bin/ogr2ogr'
         this = self.writetileshapefile(workspace)
         clipped = this.replace('.shp', '-clipped.shp')
@@ -241,6 +256,8 @@ class Tile(object):
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
+        t1 = time.time()
+        logging.info('Total elapsed time to clip: %s' % (t1-t0))
         return Tile(self.key, self.nwcorner, self.secorner, self.cells_per_degree, self.digits, self.a, self.inverse_flattening, clipped)
 
     def writetileshapefile(self, workspace):
@@ -378,7 +395,7 @@ if __name__ == '__main__':
     
     if command == 'clip':
         clipped = clip(options)
-        logging.info('Clipped: %s' % str(clipped))
+        logging.info('Finished command clip.')
 
     if command == 'csv2couchdb':
         tile = maketile(options)
@@ -387,6 +404,6 @@ if __name__ == '__main__':
         logging.info('Finished command csv2couch.')
 
     if command == 'load':
-        clipped = clip(options)    
-        logging.info('Clipped: %s' % str(clipped))
+        clipped = clip(options)
         load(options, clipped)    
+        logging.info('Finished command load.')
