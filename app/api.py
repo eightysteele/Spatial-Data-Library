@@ -29,7 +29,7 @@ import simplejson
 
 COUCHDB_HOST = 'http://eighty.berkeley.edu'
 COUCHDB_PORT = 5984
-COUCHDB_DATABASE = 'sdl'
+COUCHDB_DATABASE = 'sdl-dev'
 COUCHDB_DESIGN = 'api'
 COUCHDB_VIEW = 'cells'
 COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % (
@@ -155,15 +155,34 @@ class CellValuesHandler(webapp.RequestHandler):
     def get(self):
         return self.post()
     
+    def getcellkeys(self, coords, resolution):
+        """Returns a rectangular cell index in the form x-y
+        where x is the number of cells west of lng to lng = -180 and
+        y is the number of cells north of lat to lat = 90."""
+        keys = set()
+        for xy in coords:
+            x,y = xy.split(',')            
+            dlat = 90 - float(y)
+            dlng = float(x) + 180
+            x = int(dlng/resolution)
+            y = int(dlat/resolution)
+            keys.add('%s-%s' % (x, y))
+        logging.info('RETURNING KEYS: ' + str(keys))
+        return keys
+
     def post(self):
         k = self.request.get('k', None) 
         v = self.request.get('v', None)
+        xy = self.request.get('xy', None)
         c = 'true' == self.request.get('c')
-        if not k or not v:
+        if (not k and not xy) or not v:
             self.error(404)
             return
-
-        cell_keys = set([x.strip() for x in k.split(',')])
+        
+        if k:
+            cell_keys = set([x.strip() for x in k.split(',')])
+        else:
+            cell_keys = self.getcellkeys([val.strip() for val in xy.split('|')], .0083)
         variable_names = set([x.strip() for x in v.split(',')])
         if not cell_keys or not variable_names:
             self.error(404)
