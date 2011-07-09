@@ -140,19 +140,24 @@ class RMGTest(unittest.TestCase):
     def test_tile_kml(self):
 #        nwcorner = Point(30,0)
 #        secorner = Point(60,-30)
-        nwcorner = Point(170,90)
-        secorner = Point(170,0)
-        cells_per_degree = 0.1
+        nwcorner = Point(42.883,0)
+        secorner = Point(42.892,-0.009)
+        cells_per_degree = 120
         digits = 7
         tile = RMGTile(nwcorner, secorner, cells_per_degree, digits)
         print tile.kml()
 
     def test_cell(self):
-        cells_per_degree = 0.1
-        lat = -20
-        lng = 30
+        cells_per_degree = 120
+        lat = -5.45
+        lng = 39.12
         key = RMGCell.key(lng, lat, cells_per_degree)
         print "lat: "+str(lat) +" lng: "+str(lng) + " key: "+key
+
+        key="26567-10800"
+        polygon = RMGCell.polygon(key, cells_per_degree)
+        center = RMGCell.center(key)
+        print 'key: %s center: %s polygon: %s' % (key, center, polygon)
 
         key="18-11"
         polygon = RMGCell.polygon(key, cells_per_degree)

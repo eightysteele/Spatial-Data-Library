@@ -137,15 +137,17 @@ class Tile(object):
         return str(self.__dict__)
 
     def _clip2intersect2couchdb(self, cells, options, batchnum):
-        logging.info(self.filename)
+        t0 = time.time()
         filename = os.path.join(os.path.splitext(self.filename)[0], '%s' % batchnum)
-        logging.info(filename)
+        logging.info('Preparing shapefile %s in _clip2intersect2couchdb().' % (filename) )
         w = shapefile.Writer(shapefile.POLYGON)
         w.field('CellKey','C','255')
         for cell in cells:
             w.poly(parts=[cell.polygon])
             w.record(CellKey=cell.key)
         w.save(filename)        
+        t0 = time.time()
+        logging.info('Shapefile %s prepared in %s' % (batchnum, filename, t1-t0))
         clippedfile = Tile.clip2cell('%s.shp' % filename, self.filename)
         csvfile = Tile.intersect(clippedfile, options)
         Tile.csv2couch(csvfile, options)
@@ -162,14 +164,12 @@ class Tile(object):
     def csv2couch(cls, csvfile, options):
         """Loads values from csv file to couchdb."""
         t0 = time.time()
+        logging.info('Beginning csv2couch(), preparing cells for bulkloading from %s.' % (csvfile) )
         server = couchdb.Server(options.couchurl)
-        cdb = server['sdl-dev']    
+        cbd = server[options.couchdbname]
         cells_per_degree = float(options.cells_per_degree)
-        logging.info('Bulkloading csv file ' + csvfile)
         dr = csv.DictReader(open(csvfile, 'r'))
         cells = {}
-        
-        #dr.next() # Skip header
         for row in dr:
             cellkey = row.get('CellKey')
             if not cells.has_key(cellkey):
@@ -179,17 +179,21 @@ class Tile(object):
                     'vars': {}
                     }            
             varname = row.get('RID').split('_')[0]
+            # the following dependent on running starspan with --stats %s avg
             varval = row.get('avg_Band1')
+            # the following need for Worldclim because of the -9999 NODATA value.
             cells.get(cellkey).get('vars')[varname] = translatevariable(varname, varval)
-        logging.info('Bulkloading %s documents' % len(cells))
-        cdb.update(cells.values())
         t1 = time.time()
-        logging.info('%s documents uploaded in %s' % (len(cells), t1-t0))
+        logging.info('%s cells prepared for upload in %s' % (len(cells), t1-t0))
+        cdb.update(cells.values())
+        t2 = time.time()
+        logging.info('%s documents uploaded in %s' % (len(cells), t2-t1))
 
     @classmethod
     def intersect(cls, shapefile, options):      
         """Intersects features in a shapefile with variables via starspan."""
         t0 = time.time()
+        logging.info('Beginning starspan statistics on %s.' % (shapefile) )
         variables = [os.path.join(options.vardir, x) \
                          for x in os.listdir(options.vardir) \
                          if x.endswith('.bil')]
@@ -198,21 +202,22 @@ class Tile(object):
         # Call starspan requesting mean of variable, exclusing nodata values (-9999 in the file is the same as 55537)
         command = 'starspan --vector %s --raster %s --stats %s avg --nodata 55537' \
             % (shapefile, variables, csvfile)
-        logging.info(command)
+#        logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
         t1 = time.time()
-        logging.info('starspan statistics finished  in %s' % (t1-t0) )
+        logging.info('starspan statistics finished in %s.' % (t1-t0) )
         return csvfile
         
     @classmethod
     def clip2cell(cls, src, shapefile):
         """Clips src by shapefile and returns clipped shapefile name."""
         t0 = time.time()
+        logging.info('Beginning clipping of %s by %s.' % (src, shapefile) )
         ogr2ogr = '/usr/local/bin/ogr2ogr'
         clipped = src.replace('.shp', '-clipped.shp')
         command = '%s -clipsrc %s %s %s' % (ogr2ogr, shapefile, clipped, src)
-        logging.info(command)
+#        logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
         t1 = time.time()
@@ -222,6 +227,7 @@ class Tile(object):
     def bulkload2couchdb(self, options):
         """Bulkloads the tile to CouchDB using command line options."""
         t0 = time.time()
+        logging.info('Beginning bulkload2couchdb().')
         batchsize = int(options.batchsize)
         batchnum = 0
         cells_per_degree = float(options.cells_per_degree)
@@ -239,7 +245,7 @@ class Tile(object):
         if count > 0:
             self._clip2intersect2couchdb(cells, options, batchnum)
         t1 = time.time()
-        logging.info('Total elapsed time to load: %s' % (t1-t0))
+        logging.info('Total elapsed time to bulkload2couchdb(): %s' % (t1-t0))
     
     def clip(self, shapefile, workspace):
         """Returns a Tile clipped by shapefile.
@@ -252,12 +258,13 @@ class Tile(object):
         ogr2ogr = '/usr/local/bin/ogr2ogr'
         this = self.writetileshapefile(workspace)
         clipped = this.replace('.shp', '-clipped.shp')
+        logging.info('Beginning clipping of %s by %s.' % (shapefile, this))
         command = '%s -clipsrc %s %s %s' % (ogr2ogr, this, clipped, shapefile)
-        logging.info(command)
+#        logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
         t1 = time.time()
-        logging.info('Total elapsed time to clip: %s' % (t1-t0))
+        logging.info('%s clipped by %s in %s' % (shapefile, this, t1-t0))
         return Tile(self.key, self.nwcorner, self.secorner, self.cells_per_degree, self.digits, self.a, self.inverse_flattening, clipped)
 
     def writetileshapefile(self, workspace):
@@ -278,7 +285,6 @@ class Tile(object):
         """Writes tile shapefile in workspace directory and returns filename."""
         cell = self.getcells().next()
         cellinfo = 'Cell: %s' % (cell)
-        logging.info(cellinfo)
         fout = os.path.join(workspace, cell.key)
         w = shapefile.Writer(shapefile.POLYGON)
         w.field('CellKey','C','255')
@@ -310,8 +316,8 @@ class Tile(object):
             while lng < east:
                 key = str(x_index)+'-'+str(y_index)
                 polygon = tuple([(float(x[0]), float(x[1])) for x in RMGCell.polygon(key, self.cells_per_degree, self.digits, self.a, self.inverse_flattening)])
-                yieldingthis = 'Yield CellKey=%s: lat: %s lng: %s' % (key, lat, lng)
-                logging.info(yieldingthis)
+#                yieldingthis = 'Yield CellKey=%s: lat: %s lng: %s' % (key, lat, lng)
+#                logging.info(yieldingthis)
                 yield TileCell(key, polygon, self.cells_per_degree)
                 if crosses_180 == True and crossed == False:
                     elng = RMGCell.east(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
@@ -364,10 +370,15 @@ def _getoptions():
                       dest="couchurl",
                       help="The CouchDB URL.",
                       default=None)
+    parser.add_option("-d", 
+                      "--couchdbname", 
+                      dest="couchdbname",
+                      help="The CouchDB database name.",
+                      default='worldclim-rmg')
     parser.add_option("-g", 
                       "--gadm", 
                       dest="gadm",
-                      help="The GADM shapefile.",
+                      help="The Global Administrative shapefile to clip to.",
                       default=None)
     parser.add_option("-k", "--key", dest="key",
                       help="Identifier for the Tile",
@@ -385,11 +396,12 @@ def _getoptions():
                       "--batchsize", 
                       dest="batchsize",
                       help="The batch size (default 25,000)",
-                      default=None)
+                      default=25000)
     return parser.parse_args()[0]
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
+
     options = _getoptions()
     command = options.command.lower()
     
@@ -407,3 +419,14 @@ if __name__ == '__main__':
         clipped = clip(options)
         load(options, clipped)    
         logging.info('Finished command load.')
+#Command line:
+#            ./sdl.py -c load -w ~/SDL/workspace -g ~/Spatial-Data-Library/data/gadm/Terrestrial15kBuffer.shp  -k 37 -f 30,0 -t 60,-30 -b 25000 -n 120 -v /SDL/worldclim/37 -u http://eighty.berkeley.edu:5984 &
+
+#Before clearing ~SDL/workspace of Tile 37 files
+#Filesystem           1K-blocks      Used Available Use% Mounted on
+#/dev/sda2            223856640 124558204  87927100  59% /
+
+#After clearing ~SDL/workspace of Tile 37 files
+#Filesystem           1K-blocks      Used Available Use% Mounted on
+#/dev/sda2            223856640 106658316 105826988  51% /
+
