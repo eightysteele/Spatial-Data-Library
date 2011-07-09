@@ -419,6 +419,22 @@ if __name__ == '__main__':
         clipped = clip(options)
         load(options, clipped)    
         logging.info('Finished command load.')
+
+    if command == 'getworldclimtile':
+        varset = ['tmean','tmin','tmax','prec','alt','bio']
+        for var in varset:
+            varfile = '%s_%s.zip' % (var, options.key)
+            varpath = os.path.join(options.vardir, varfile)
+            command = 'wget -P %s http://biogeo.ucdavis.edu/data/climate/worldclim/1_4/tiles/cur/%s' % (options.vardir, varfile)
+            logging.info(command)
+            args = shlex.split(command)
+            subprocess.call(args)
+            command = 'unzip %s -d %s' % (varpath, options.vardir)
+            logging.info(command)
+            args = shlex.split(command)
+            subprocess.call(args)
+
+
 #Command line:
 # ./sdl.py -c load -d worldclim-rmg -w ~/SDL/workspace -g ~/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -b 25000 -n 120 -v /SDL/worldclim/37 -u http://eighty.berkeley.edu:5984 &
 
