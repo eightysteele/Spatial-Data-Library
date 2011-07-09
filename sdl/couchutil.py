@@ -278,6 +278,8 @@ if __name__ == '__main__':
                 INFO:root:25000 documents bulkloaded in 82.1581799984
                 INFO:root:25000 documents bulkloaded in 86.815792799
                 INFO:root:25000 documents bulkloaded in 89.949283123
+            with no views on empty, new worldclim-rmg:
+                INFO:root:25000 documents bulkloaded in 63.1547930241
         """
 
     if command == 'testsave':

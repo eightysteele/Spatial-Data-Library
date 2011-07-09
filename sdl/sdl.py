@@ -146,7 +146,7 @@ class Tile(object):
             w.poly(parts=[cell.polygon])
             w.record(CellKey=cell.key)
         w.save(filename)        
-        t0 = time.time()
+        t1 = time.time()
         logging.info('Shapefile %s prepared in %s' % (batchnum, filename, t1-t0))
         clippedfile = Tile.clip2cell('%s.shp' % filename, self.filename)
         csvfile = Tile.intersect(clippedfile, options)
@@ -260,7 +260,7 @@ class Tile(object):
         clipped = this.replace('.shp', '-clipped.shp')
         logging.info('Beginning clipping of %s by %s.' % (shapefile, this))
         command = '%s -clipsrc %s %s %s' % (ogr2ogr, this, clipped, shapefile)
-#        logging.info(command)
+        logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
         t1 = time.time()
@@ -420,7 +420,7 @@ if __name__ == '__main__':
         load(options, clipped)    
         logging.info('Finished command load.')
 #Command line:
-#            ./sdl.py -c load -w ~/SDL/workspace -g ~/Spatial-Data-Library/data/gadm/Terrestrial15kBuffer.shp  -k 37 -f 30,0 -t 60,-30 -b 25000 -n 120 -v /SDL/worldclim/37 -u http://eighty.berkeley.edu:5984 &
+# ./sdl.py -c load -d worldclim-rmg -w ~/SDL/workspace -g ~/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -b 25000 -n 120 -v /SDL/worldclim/37 -u http://eighty.berkeley.edu:5984 &
 
 #Before clearing ~SDL/workspace of Tile 37 files
 #Filesystem           1K-blocks      Used Available Use% Mounted on
@@ -430,3 +430,4 @@ if __name__ == '__main__':
 #Filesystem           1K-blocks      Used Available Use% Mounted on
 #/dev/sda2            223856640 106658316 105826988  51% /
 
+#Before Tile 37 bulkload to worldclim-rmg sans view sdl/zerovalues
