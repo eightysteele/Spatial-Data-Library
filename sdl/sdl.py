@@ -147,7 +147,7 @@ class Tile(object):
             w.record(CellKey=cell.key)
         w.save(filename)        
         t1 = time.time()
-        logging.info('Shapefile %s prepared in %s' % (batchnum, filename, t1-t0))
+        logging.info('Shapefile %s prepared in %s' % (filename, t1-t0))
         clippedfile = Tile.clip2cell('%s.shp' % filename, self.filename)
         csvfile = Tile.intersect(clippedfile, options)
         Tile.csv2couch(csvfile, options)
@@ -166,7 +166,7 @@ class Tile(object):
         t0 = time.time()
         logging.info('Beginning csv2couch(), preparing cells for bulkloading from %s.' % (csvfile) )
         server = couchdb.Server(options.couchurl)
-        cbd = server[options.couchdbname]
+        cdb = server[options.database]
         cells_per_degree = float(options.cells_per_degree)
         dr = csv.DictReader(open(csvfile, 'r'))
         cells = {}
@@ -371,10 +371,10 @@ def _getoptions():
                       help="The CouchDB URL.",
                       default=None)
     parser.add_option("-d", 
-                      "--couchdbname", 
-                      dest="couchdbname",
+                      "--database", 
+                      dest="database",
                       help="The CouchDB database name.",
-                      default='worldclim-rmg')
+                      default=None)
     parser.add_option("-g", 
                       "--gadm", 
                       dest="gadm",
@@ -436,7 +436,7 @@ if __name__ == '__main__':
 
 
 #Command line:
-# ./sdl.py -c load -d worldclim-rmg -w ~/SDL/workspace -g ~/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -b 25000 -n 120 -v /SDL/worldclim/37 -u http://eighty.berkeley.edu:5984 &
+# ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/37 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -n 120 -b 25000 &
 
 #Before clearing ~SDL/workspace of Tile 37 files
 #Filesystem           1K-blocks      Used Available Use% Mounted on
@@ -447,3 +447,6 @@ if __name__ == '__main__':
 #/dev/sda2            223856640 106658316 105826988  51% /
 
 #Before Tile 37 bulkload to worldclim-rmg sans view sdl/zerovalues
+#Filesystem           1K-blocks      Used Available Use% Mounted on
+#/dev/sda2            223856640  87802392 124682912  42% /
+
