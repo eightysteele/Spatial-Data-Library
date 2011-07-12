@@ -52,12 +52,12 @@ def truncate(x, digits):
     format_x = FORMAT % digits
     return format(x,format_x)
 
-def getpolygon(lng, lat, cells_per_degree = CELLS_PER_DEGREE):
+def getpolygon(lng, lat, cpd = CPD):
     '''Returns list of points in lng, lat order for a cell whose center is 
     given by lng, lat on a grid with resolution defined in the same degrees.
     Assumes math.fabs(lat) < 90
     Example: 30 sec grid has 120 cells per degree and resolution = 0.0083333'''
-    resolution = 1.0/cells_per_degree
+    resolution = 1.0/cpd
     nw = [lng180(lng-resolution/2), lat+resolution/2]
     ne = [lng180(lng+resolution/2), lat+resolution/2]
     se = [lng180(lng+resolution/2), lat-resolution/2]
@@ -92,12 +92,12 @@ class Variable(object):
 class TileCell(object):
     """A tile cell described by a polygon with geographic coordinates."""
 
-    def __init__(self, key, polygon, cells_per_degree = CELLS_PER_DEGREE):
+    def __init__(self, cpd = CELLS_PER_DEGREE, key, polygon):
         """Constructs a TileCell.
 
         Arguments:
         """
-        self.cells_per_degree
+        self.cpd
         self.key = key
         self.polygon = polygon
         
@@ -125,15 +125,15 @@ class Tile(object):
         self.west = -180.0 + self.width * col
         self.east = self.west + self.width
 
-    def _getcellkey(self, tilerow, tilecol, cells_per_degree = CELLS_PER_DEGREE):
+    def _getcellkey(self, tilerow, tilecol, cpd = CELLS_PER_DEGREE):
         """Gets the global cell key."""
-        x = self.col * self.width * cells_per_degree + tilecol
-        y = self.row * self.width * cells_per_degree + tilerow
+        x = self.col * self.width * cpd + tilecol
+        y = self.row * self.width * cpd + tilerow
         return '%s-%s' % (x, y)
 
-    def _getcellpolygon(self, lat, lng, cells_per_degree = CELLS_PER_DEGREE):
+    def _getcellpolygon(self, lat, lng, cpd = CELLS_PER_DEGREE):
         """Gets the cell polygon given the cells per degree and the lat, lng of the NW corner."""
-        cellres = 1.0/cells_per_degree
+        cellres = 1.0/cpd
         return [
                  [lng, lat],                       
                  [lng + cellres, lat],
@@ -159,11 +159,11 @@ class Tile(object):
         csvfile = Tile.intersect(clippedfile, options)
         server = couchdb.Server(options.couchurl)
         cdb = server['sdl-dev']    
-        cells_per_degree = float(options.cells_per_degree)
-        Tile.csv2couch(csvfile, cdb, cells_per_degree)
+        cpd = float(options.cpd)
+        Tile.csv2couch(csvfile, cdb, cpd)
 
     @classmethod
-    def csv2couch(cls, csvfile, cdb, cells_per_degree = CELLS_PER_DEGREE):
+    def csv2couch(cls, csvfile, cdb, cpd = CELLS_PER_DEGREE):
         logging.info('Bulkloading csv file ' + csvfile)
         dr = csv.DictReader(open(csvfile, 'r'))
         cells = {}
@@ -176,7 +176,7 @@ class Tile(object):
             if not cells.has_key(cellkey):
                 cells[cellkey] = {
                     '_id': cellkey, 
-                    'coords': getpolygon(x, y, cells_per_degree),
+                    'coords': getpolygon(x, y, cpd),
                     'vars': {}
                     }            
             varname = row.get('RID').split('_')[0]
@@ -215,10 +215,10 @@ class Tile(object):
         """Bulkloads the tile to CouchDB using command line options."""
         batchsize = int(options.batchsize)
         batchnum = 0
-        cells_per_degree = float(options.cells_per_degree)
+        cpd = float(options.cpd)
         cells = []
         count = 0
-        for cell in self.getcells(cells_per_degree):
+        for cell in self.getcells(cpd):
             if count >= batchsize:
                 self._clip2intersect2couchdb(cells, options, batchnum)
                 count = 0
@@ -255,13 +255,13 @@ class Tile(object):
     def writemultishapefiles(self):
         pass
                                             
-    def getcells(self, cells_per_degree = CELLS_PER_DEGREE):
+    def getcells(self, cpd = CELLS_PER_DEGREE):
         """Iterates over all cells in the tile at the given cell resolution.
 
         Arguments:
-            cells_per_degree - The number of cells in one degree of lat or lng.
+            cpd - The number of cells in one degree of lat or lng.
         """
-        cellres = 1.0/cells_per_degree
+        cellres = 1.0/cpd
         lng = self.west
         lat = self.north        
         row = 0
@@ -270,9 +270,9 @@ class Tile(object):
             row = 0
             while lat > self.south:
                 yield TileCell(
-                    self._getcellkey(row, col, cells_per_degree), 
-                    self._getcellpolygon(lat, lng, cells_per_degree),
-                    cells_per_degree)
+                    cpd,
+                    self._getcellkey(row, col, cpd), 
+                    self._getcellpolygon(lat, lng, cpd))
                 lat -= cellres
                 row += 1
             lat = self.north
@@ -314,7 +314,7 @@ def _getoptions():
                       default=None)
     parser.add_option("-n", 
                       "--cells-per-degree", 
-                      dest="cells_per_degree",
+                      dest="cpd",
                       help="The number of cells in a degree",
                       default=CELLS_PER_DEGREE)
 

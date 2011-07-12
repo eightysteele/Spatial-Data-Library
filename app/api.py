@@ -21,8 +21,9 @@ from google.appengine.api import mail, memcache, urlfetch
 from google.appengine.ext import webapp, db
 from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
-#from rmg import *
-from sdl.rmg import *
+
+from sdl import rmg
+
 import logging
 import os
 import simplejson
@@ -35,8 +36,12 @@ COUCHDB_PORT = 5984
 COUCHDB_DATABASE = 'worldclim-rmg'
 COUCHDB_DESIGN = 'api'
 COUCHDB_VIEW = 'cells'
-COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % (
-    COUCHDB_HOST, COUCHDB_PORT, COUCHDB_DATABASE, COUCHDB_DESIGN, COUCHDB_VIEW)
+COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % \
+    (COUCHDB_HOST, 
+     COUCHDB_PORT, 
+     COUCHDB_DATABASE, 
+     COUCHDB_DESIGN, 
+     COUCHDB_VIEW)
 
 class CouchDbCell(db.Model):
     """Models a CouchDB cell document.
@@ -168,28 +173,68 @@ class CellValuesHandler(webapp.RequestHandler):
         cell_keys = set()
         for coord in coords:
             lon, lat = coord.split(',')
-            cell_key = RMGCell.key(float(lon), float(lat), CELLS_PER_DEGREE, SEMI_MAJOR_AXIS, INVERSE_FLATTENING)
+            cell_key = rmg.RMGCell.key(
+                float(lon), 
+                float(lat), 
+                rmg.CELLS_PER_DEGREE, 
+                rmg.SEMI_MAJOR_AXIS, 
+                rmg.INVERSE_FLATTENING)
             cell_keys.add(cell_key)
         return cell_keys
 
     def get(self):
         return self.post()
     
+    def getcellkeys(self, coords, resolution):
+        """Returns a rectangular cell index in the form x-y
+        where x is the number of cells west of lng to lng = -180 and
+        y is the number of cells north of lat to lat = 90."""
+        keys = set()
+        for xy in coords:
+            x,y = xy.split(',')            
+            dlat = 90 - float(y)
+            dlng = float(x) + 180
+            x = int(dlng/resolution)
+            y = int(dlat/resolution)
+            keys.add('%s-%s' % (x, y))
+        logging.info('RETURNING KEYS: ' + str(keys))
+        return keys
+
     def post(self):
-        xy = self.request.get('xy', None)
-        k = self.request.get('k', None) 
-        v = self.request.get('v', None)
+        xy = self.request.get('xy', None) # lon,lat|lon,lat|...
+        k = self.request.get('k', None)  # cellkey,cellkey,...
+        v = self.request.get('v', None) # varname,varname,...
         c = 'true' == self.request.get('c')
+
+        logging.info('hi')
         if not k and not xy:
+            logging.error('No cell keys for k=%s, xy=%s' % (k, xy))
             self.error(404)
             return
+        
+        if k:
+            cell_keys = set([x.strip() for x in k.split(',')])
+        else:
+            cell_keys = self.getcellkeys([x.strip() for x in xy.split('|')], .0083)
+
+        if not cell_keys:
+            logging.error('No cell keys for k=%s, xy=%s' % (k, xy))
+            self.error(404)
+            return
+
+        if v:
+            variable_names = set([x.strip() for x in v.split(',')])
+        else:
+            variable_names = []
+        
+        cells = CellValuesHandler.getcells(cell_keys)        
         results = []
         if xy:
             coords = set([x.strip() for x in xy.split('|')])
             if not coords:
                 self.error(404)
                 return
-            print 'coords: %s' % str(coords)
+            logging.info('coords: %s' % str(coords))
 
             cell_keys = CellValuesHandler.getcellsbycoords(coords)
             if not cell_keys:
@@ -207,8 +252,8 @@ class CellValuesHandler(webapp.RequestHandler):
             cell = cells.get(cellkey)
             varvals = simplejson.loads(cell.varvals)
             requested_varvals = {}
-            if v:
-                variable_names = set([x.strip() for x in v.split(',')])
+            varvals = simplejson.loads(cell.varvals)
+            if len(variable_names) > 0:
                 for name in variable_names:
                     requested_varvals[name] = varvals.get(name)
             else:
