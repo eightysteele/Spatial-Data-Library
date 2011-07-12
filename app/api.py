@@ -205,13 +205,14 @@ class CellValuesHandler(webapp.RequestHandler):
                     
         for cellkey in cells.keys():
             cell = cells.get(cellkey)
+            varvals = simplejson.loads(cell.varvals)
             requested_varvals = {}
             if v:
                 variable_names = set([x.strip() for x in v.split(',')])
                 for name in variable_names:
                     requested_varvals[name] = varvals.get(name)
             else:
-                requested_varvals = simplejson.loads(cell.varvals)
+                requested_varvals = varvals
             result = {'cell-key': cellkey, 
                       'cell-values': requested_varvals}
             if c:
