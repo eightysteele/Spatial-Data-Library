@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__author__ = "Aaron Steele"
+__author__ = "Aaron Steele, Dave Vieglais, and John Wieczorek"
 
 """
 This module includes classes and a command line interface for bulkloading 
@@ -107,15 +107,16 @@ class TileCell(object):
 class Tile(object):
     """A 30 arc-second geographic tile (http://www.worldclim.org/tiles.php)."""
 
-    def __init__(self, row, col, filename=None):
+    def __init__(self, row, col, width=TILE_WIDTH_DEGREES, filename=None):
         """Tile constructor.
 
         Arguments:
             row - The global tile row number.
             col - The global tile column number.
-            filename - Shapefile file name.
+            width - The width of the tile, in degrees.
+            filename - The name of the input Shapefile.
         """
-        self.width = TILE_WIDTH_DEGREES
+        self.width = width
         self.row = row
         self.col = col
         self.filename = filename

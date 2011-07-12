@@ -33,7 +33,7 @@ bulkloader-progress*
 
 # Shapefiles
 #############################
-*.shp
-*.dbf
-*.shx
+#*.shp
+#*.dbf
+#*.shx
 

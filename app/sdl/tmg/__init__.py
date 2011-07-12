@@ -33,6 +33,7 @@ from optparse import OptionParser
 """Set CELL_COUNT to the desired number of cells on each edge of the rhomboids."""
 CELL_COUNT = 3
 
+"""The number of cells in a one degree of longitude at the equator."""
 CELLS_PER_DEGREE = 120
 
 """
@@ -50,6 +51,12 @@ onto a sphere of this radius. As a result, edge lengths and areas of cells proje
 onto the WGS84 ellipsoid will vary slightly by latitude.
 """
 SEMI_MAJOR_AXIS = 6378137.0
+
+"""
+Flattening is the measure of the oblateness of an ellipsoid. Inverse flattening is 
+a parameter describing an ellipsoid for a datum. Here the default value is for WGS84.
+"""
+INVERSE_FLATTENING = 298.257223563
 
 """
 EDGE_LENGTH is the length of the edge of any face of the icosahedron inscribed on the 
@@ -296,6 +303,32 @@ def convert(seq, t, rt):
     """
     return rt(map(lambda x: t(x), seq))
 
+def calculateLngLatMetersPerDegree(lat, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING):
+    # The distance between point A at a latitude equal to decimallatitude and point B
+    # at the same latitude, but one degree removed from point A in longitude, is here
+    # estimated to be the length of an arc subtending an angle of one degree with a
+    # radius equal to the distance from point A to the polar axis and orthogonal to it.
+    # The source for the following values is NIMA 8350.2, 4 Jul 1977
+
+    f = 1.0/inverse_flattening
+
+    e_squared = f * (2.0 - f) # e^2 = 2f - f^2
+
+    # N - radius of curvature in the prime vertical, (tangent to ellipsoid at latitude)
+    # N(lat) = a/(1-e^2*sin^2(lat))^0.5
+    N = a / math.sqrt(1.0 - e_squared * (math.pow(math.sin(lat * math.pi / 180.0), 2.0))) 
+
+    # M - radius of curvature in the prime meridian, (tangent to ellipsoid at latitude)
+    # M(lat) = a(1-e^2)/(1-e^2*sin^2(lat))^1.5
+    M = a * (1.0 - e_squared) / math.pow(1.0 - e_squared * math.pow(math.sin(lat * math.pi / 180.0), 2.0), 1.5)
+
+    # longitude is irrelevant for the calculations to follow so simplify by using longitude = 0, so Y = 0
+    # X = Ncos(lat)cos(long). long = 0, so cos(long) = 1.0
+    X = N * math.cos(lat * math.pi / 180.0) * 1.0 
+    lngmetersperdegree = math.pi * X / 180.0 
+    latmetersperdegree = math.pi * M / 180.0
+    return (lngmetersperdegree, latmetersperdegree)
+
 def get_cell_centroid(polygon):
     """Intersect arcs from north to south and east to west."""
     p = map(lambda x: flip(convert(x, float, tuple)), polygon)
@@ -384,6 +417,329 @@ class Point(object):
     def __str__(self):
         return str(self.__dict__)
 
+class CellPolygon(object):
+    def __init__(self, cellkey, polygon):
+        self._cellkey = cellkey
+        self._polygon = polygon
+        self._hashcode = hash((self._cellkey, self._polygon))
+        
+    def getcellkey(self): 
+        return self._cellkey
+    cellkey = property(getcellkey)
+        
+    def getpolygon(self):
+        return self._polygon
+    polygon = property(getpolygon)
+        
+    def __str__(self):
+        return str(self.__dict__)
+
+
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return result
+        return not result
+
+    def __eq__(self, other):
+        if isinstance(other, CellPolygon):
+            return self._hashcode == other._hashcode
+        return NotImplemented
+
+    def __hash__(self):
+        return self._hashcode
+
+    def __cmp__(self, other):
+        if self.cellkey > other.cellkey:
+            return 1
+        elif self.cellkey < other.cellkey:
+            return -1
+        return 0
+
+class AdaptiveCell(object):
+    """
+    AdaptiveCell is the grid cell of an Adaptive Rectangular Mesh Grid over an ellipsoid. The cell is 
+    identified by the x and y indexes of its location with respect to the north pole and the meridian
+    at -180 longitude (index 0,0 is at -180,90). All cells are defined by the coordinate reference system
+    and the resolution in cells per degree. The angular y component of the cell is a constant 
+    (1/cells per degree), while the angular x component is a function of latitude in order to preserve
+    equal area for all cells. Exceptions to the equal area may occur at the poles, depending on the 
+    cells per degree. 
+    """ 
+    
+    @staticmethod
+    def key(lng, lat,  a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING, cells_per_degree = CELLS_PER_DEGREE):
+        """Returns the unique identifier for a cell given a longitude, latitude, and parameters 
+        of the ellipsoid on which this coordinate occurs.
+
+        Arguments:
+            lng - the longitude of a Point for which the enclosing cell is sought
+            lat - the latitude of a Point for which the enclosing cell is sought
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            inverse_flattening - the inverse of the ellipsoid's flattening parameter 
+                (298.257223563 for WGS84)
+            cells_per_degree - the desired resolution of the grid
+        """
+        lngmpd, latmpd = calculateLngLatMetersPerDegree(lat, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING)
+        area = AdaptiveCell.area(a, cells_per_degree)
+        y_dist = latmpd / cells_per_degree # y side of cell in meters
+        y_index = math.floor((90.0 - lat) * cells_per_degree)
+        if lat <= -90:
+            y_index -= 1
+        x_dist = area / y_dist
+        x_angle = x_dist / lngmpd # x side in degrees
+        if x_angle >= 360:
+            x_index = 0
+        else:
+            x_index = math.floor((180.0 + lng) / x_angle)
+        return '%s-%s' % (int(x_index), int(y_index))
+
+    @staticmethod
+    def north(y_index, cells_per_degree = CELLS_PER_DEGREE):
+        """Returns the latitude of the north edge of the cell given a y_index and a cell resolution.
+
+        Arguments:
+            y_index - the zero-based index of the cell measured south from the north pole
+            cells_per_degree - the desired resolution of the grid
+        """
+        lat = 90.0 - float(y_index) / cells_per_degree
+        return lat 
+
+    @staticmethod
+    def south(y_index, cells_per_degree = CELLS_PER_DEGREE):
+        """Returns the latitude of the south edge of the cell.
+
+        Arguments:
+            y_index - the zero-based index of the cell measured south from the north pole
+            cells_per_degree - the desired resolution of the grid
+        """
+        lat = 90.0 - float(y_index + 1) / cells_per_degree
+        return lat 
+        
+    @staticmethod
+    def west(x_index, y_index, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING, cells_per_degree = CELLS_PER_DEGREE):
+        """Returns the longitude of the west edge of the cell.
+
+        Arguments:
+            x_index - the zero-based index of the cell measured east from -180
+            y_index - the zero-based index of the cell measured south from the north pole
+            cells_per_degree - the desired resolution of the grid
+        """
+        if y_index == 0:
+            return -180
+        if y_index >= (cells_per_degree * 180) - 1:
+            return -180
+        lat = ( AdaptiveCell.north(y_index, cells_per_degree) + AdaptiveCell.south(y_index, cells_per_degree) ) / 2
+        lngmpd, latmpd = calculateLngLatMetersPerDegree(lat, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING)
+        area = AdaptiveCell.area(a, cells_per_degree)
+        y_dist = latmpd / cells_per_degree # y side of cell in meters
+        x_dist = area / y_dist
+        x_angle = x_dist / lngmpd # x side in degrees
+        lng = -180.0 + (x_index * x_angle)
+        return lng
+
+    @staticmethod
+    def east(x_index, y_index, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING, cells_per_degree = CELLS_PER_DEGREE):
+        """Returns the longitude of the east edge of the cell.
+
+        Arguments:
+            x_index - the zero-based index of the cell measured east from -180
+            y_index - the zero-based index of the cell measured south from the north pole
+            cells_per_degree - the desired resolution of the grid
+        """
+        if y_index == 0:
+            return 180
+        if y_index >= (cells_per_degree * 180) - 1:
+            return 180
+        lat = ( AdaptiveCell.north(y_index, cells_per_degree) + AdaptiveCell.south(y_index, cells_per_degree) ) / 2
+        lngmpd, latmpd = calculateLngLatMetersPerDegree(lat, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING)
+        area = AdaptiveCell.area(a, cells_per_degree)
+        y_dist = latmpd / cells_per_degree # x side of cell in meters
+        x_dist = area / y_dist
+        x_angle = x_dist / lngmpd # y side in degrees
+        lng = -180.0 + ((x_index + 1) * x_angle)
+        return lng
+
+    @staticmethod
+    def mid_lat(y_index, cells_per_degree = CELLS_PER_DEGREE):
+        """Returns the latitude of the center of the cell.
+
+        Arguments:
+            y_index - the zero-based index of the cell measured south from the north pole
+            cells_per_degree - the desired resolution of the grid
+        """
+        if y_index == 0:
+            return 0
+        if y_index >= (cells_per_degree * 180) - 1:
+            return 0
+        lat = 90.0 - (y_index / cells_per_degree) - ( 1.0 / (2.0*cells_per_degree) )
+        return lat 
+
+    @staticmethod
+    def mid_lng(x_index, y_index, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING, cells_per_degree = CELLS_PER_DEGREE):
+        """Returns the longitude of the center of the cell.
+
+        Arguments:
+            x_index - the zero-based index of the cell measured east from -180
+            y_index - the zero-based index of the cell measured south from the north pole
+            cells_per_degree - the desired resolution of the grid
+        """
+        if y_index == 0:
+            return 0
+        if y_index >= (cells_per_degree * 180) - 1:
+            return 0
+        lat = ( AdaptiveCell.north(y_index, cells_per_degree) + AdaptiveCell.south(y_index, cells_per_degree) ) / 2
+        lngmpd, latmpd = calculateLngLatMetersPerDegree(lat, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING)
+        area = AdaptiveCell.area(a, cells_per_degree)
+        y_dist = latmpd / cells_per_degree # x side of cell in meters
+        x_dist = area / y_dist
+        x_angle = x_dist / lngmpd # y side in degrees
+        lng = -180.0 + (x_index * x_angle) + (x_angle / 2.0)
+        return lng
+
+    @staticmethod
+    def area(a = SEMI_MAJOR_AXIS, cells_per_degree = CELLS_PER_DEGREE):
+        """Returns the area of the cell in the units of the semi-major axis.
+
+        Arguments:
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            cells_per_degree - the desired resolution of the grid
+        """
+        side = 2 * math.pi * a /360/cells_per_degree
+        area = sqr(side)
+        return area
+
+    @staticmethod
+    def centerPoint(key, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING, cells_per_degree = CELLS_PER_DEGREE):
+        """Returns the Point at the center of the cell having the given key.
+
+        Arguments:
+            key - the unique identifier for a cell
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            inverse_flattening - the inverse of the ellipsoid's flattening parameter
+            cells_per_degree - the desired resolution of the grid
+        """
+        indexes = key.split('-')
+        x_index = int(indexes[0])
+        y_index = int(indexes[1])
+        lat = AdaptiveCell.mid_lat(y_index, cells_per_degree)
+        lng = AdaptiveCell.mid_lng(x_index, y_index, a, inverse_flattening, cells_per_degree)
+        return Point(lng, lat)
+    
+    @staticmethod
+    def polygon(key, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING, cells_per_degree = CELLS_PER_DEGREE, digits = DEGREE_DIGITS):
+        """Returns a polygon (list of Ppoints) of the cell defined by the given key.
+
+        Arguments:
+            key - the unique identifier for a cell
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            inverse_flattening - the inverse of the ellipsoid's flattening parameter
+            cells_per_degree - the desired resolution of the grid
+        """
+        indexes = key.split('-')
+        x_index = int(indexes[0])
+        y_index = int(indexes[1])
+        n = truncate(AdaptiveCell.north(y_index, cells_per_degree), digits)
+        s = truncate(AdaptiveCell.south(y_index, cells_per_degree), digits)
+        w = truncate(AdaptiveCell.west(x_index, y_index, a, inverse_flattening, cells_per_degree), digits)
+        e = truncate(AdaptiveCell.east(x_index, y_index, a, inverse_flattening, cells_per_degree), digits)
+        return [(n,w), (s,w), (s,e), (n,e), (n,w)]
+
+    @staticmethod
+    def createPlacemark(key, polygon):
+        """Returns a KML placemark for a polygon as a string.
+
+        Arguments:
+            key - the unique identifier for a cell
+            polygon - the list of Points defining the boundary of the cell
+        """ 
+        data = (key, polygon, key)
+        placemark = PLACEMARK_1 % data
+        for c in polygon:
+            point = '                        %s,%s,1\n' % (c[0], c[1])
+            placemark = placemark + point
+        placemark = placemark + PLACEMARK_2
+        return placemark
+    
+    @staticmethod
+    def gettile(nwcorner, secorner, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING, cells_per_degree = CELLS_PER_DEGREE, digits = DEGREE_DIGITS):
+        """Returns a set of polygons for cells intersecting a bounding box.
+
+        Arguments:
+            nwcorner - the starting Point in the northwest corner of the bounding box
+            secorner - the ending Point in the southeast corner of the bounding box
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            inverse_flattening - the inverse of the ellipsoid's flattening parameter 
+                (298.257223563 for WGS84)
+            cells_per_degree - the desired resolution of the grid
+        """ 
+        cells = set()
+        north = nwcorner.lat
+        west = nwcorner.lng
+        south = secorner.lat
+        east = secorner.lng
+        lng = west
+        lat = north
+        # key for the NW corner of the tile
+        key = AdaptiveCell.key(lng, lat,  a, inverse_flattening, cells_per_degree)
+        indexes = key.split('-')
+        x_index = int(indexes[0])
+        y_index = int(indexes[1])
+        
+        while lat >= south:
+            while lng <= east:
+                polygon = tuple([(float(x[0]), float(x[1])) for x in AdaptiveCell.polygon(key, a, inverse_flattening, cells_per_degree, digits)])
+                cells.add(CellPolygon(key, polygon))
+                x_index += 1
+            lng = west
+            y_index += 1
+        return cells
+    
+    @staticmethod
+    def createBBAsKmlMesh(nwcorner, secorner, a = SEMI_MAJOR_AXIS, inverse_flattening = INVERSE_FLATTENING, cells_per_degree = CELLS_PER_DEGREE, digits = DEGREE_DIGITS):
+        """Returns a grid of cells overlapping a bounding box, as KML."""
+        placemarks = []
+        key_list = AdaptiveCell.gettile(nwcorner, secorner, a, inverse_flattening, cells_per_degree, digits)
+        for key in key_list:
+            polygon = AdaptiveCell.polygon(key, a, inverse_flattening, cells_per_degree, digits)                                        
+            p = AdaptiveCell.createPlacemark(key, polygon)
+            placemarks.append(p)
+        return KML % ' '.join(placemarks)
+
+    def __init__(self, x_index, y_index):
+        self._x_index = x_index
+        self._y_index = y_index
+        self._hashcode = hash((self._x_index, self._y_index))
+
+    def getx(self):
+        return self._x_index
+    x_index = property(getx)
+
+    def gety(self):
+        return self._y_index
+    y_index = property(gety)
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def __eq__(self, cell1, cell2):
+        return cell1._hashcode == cell2._hashcode
+
+    def __hash__(self):
+        return self._hashcode
+
+    def __cmp__(self, other):
+        """Compares cell objects by x, then by y."""
+        if self.x_index > other.x_index:
+            return 1
+        elif self.x_index < other.x_index:
+            return -1
+        elif self.y_index > other.x_index:
+            return 1
+        elif self.y_index < other.y_index:
+            return -1
+        else: return 0
+    
 class Cell(object):
     """
     Cell is the rhomboidal grid cell of a Triangular Mesh Grid over a sphere. The cell is 
@@ -423,91 +779,6 @@ class Cell(object):
         newlng = math.atan2(y1, x1) / RADIANS
         return (newlat, newlng)
            
-    @staticmethod
-    def old_alt_polygon(cell_key, cell_count = CELL_COUNT):
-        rhomboid_num, x, y = get_cell_attributes(cell_key)
-        """Get the polygon for rhomboid 1 or 5, we'll rotate the results in longitude afterwards."""
-        bearing_se = 36
-        bearing_sw = -36
-        bearing_wn = 0
-        bearing_en = 0
-        if rhomboid_num < 5:
-            polygon = Rhomboid.polygon(0)
-        else:
-            polygon = Rhomboid.polygon(5)
-            bearing_se = 0
-            bearing_sw = 0
-            bearing_wn = 36
-            bearing_en = -36
-        p = map(lambda x: flip(convert(x, float, tuple)), polygon)
-        s_vertex = p[0]
-        e_vertex = p[1]
-        w_vertex = p[len(polygon)-2]
-        cell_side = SURFACE_DISTANCE_BETWEEN_VERTEXES / cell_count
-        xdist = x * cell_side
-        ydist = y * cell_side
-
-        if s_vertex[0] == -90:
-            se0 = Rhomboid.get_point_from_distance_at_bearing((s_vertex[0], e_vertex[1]), xdist, bearing_se)
-            se1 = Rhomboid.get_point_from_distance_at_bearing((s_vertex[0], e_vertex[1]), xdist+cell_side, bearing_se)
-        else:
-            se0 = Rhomboid.get_point_from_distance_at_bearing(s_vertex, xdist, bearing_se)
-            se1 = Rhomboid.get_point_from_distance_at_bearing(s_vertex, xdist+cell_side, bearing_se)
-            
-        wn0 = Rhomboid.get_point_from_distance_at_bearing(w_vertex, xdist, bearing_wn)
-        wn1 = Rhomboid.get_point_from_distance_at_bearing(w_vertex, xdist+cell_side, bearing_wn)
-        if s_vertex[0] == -90:
-            sw0 = Rhomboid.get_point_from_distance_at_bearing((s_vertex[0],w_vertex[1]), ydist, bearing_sw)
-            sw1 = Rhomboid.get_point_from_distance_at_bearing((s_vertex[0],w_vertex[1]), ydist+cell_side, bearing_sw)
-        else:
-            sw0 = Rhomboid.get_point_from_distance_at_bearing(s_vertex, ydist, bearing_sw)
-            sw1 = Rhomboid.get_point_from_distance_at_bearing(s_vertex, ydist+cell_side, bearing_sw)
-        en0 = Rhomboid.get_point_from_distance_at_bearing(e_vertex, ydist, bearing_en)
-        en1 = Rhomboid.get_point_from_distance_at_bearing(e_vertex, ydist+cell_side, bearing_en)
-        if se0 == sw0 or (se0[0] == -90 and sw0[0] == -90):
-            cell_s_vertex = se0
-        else:
-            cell_s_vertex = great_circle_intersection_lat_lngs(se0, wn0, sw0, en0)
-        if wn1 == en1:
-            cell_n_vertex = wn1
-        else:
-            cell_n_vertex = great_circle_intersection_lat_lngs(se1, wn1, sw1, en1)
-        if se1 == en0:
-            cell_e_vertex = se1
-        else:
-            cell_e_vertex = great_circle_intersection_lat_lngs(se1, wn1, sw0, en0)
-        if sw1 == wn0:
-            cell_w_vertex = sw1
-        else:
-            cell_w_vertex = great_circle_intersection_lat_lngs(se0, wn0, sw1, en1)
-
-        """Rotate in longitude if rhomboid is other than 1 or 5."""
-        rotation = float(72.0*(rhomboid_num%5)) 
-        if cell_s_vertex[0] == -90:
-            p0 = (cell_s_vertex[0],lng180(cell_e_vertex[1]+rotation))
-            p1 = (cell_e_vertex[0],lng180(cell_e_vertex[1]+rotation))
-            p2 = (cell_n_vertex[0],lng180(cell_n_vertex[1]+rotation))
-            p3 = (cell_w_vertex[0],lng180(cell_w_vertex[1]+rotation))
-            p4 = (cell_s_vertex[0],lng180(cell_w_vertex[1]+rotation))
-            """S-out, E, N, W, S-in"""
-            return [flip(truncate_lat_lng(p0)), flip(truncate_lat_lng(p1)), flip(truncate_lat_lng(p2)), flip(truncate_lat_lng(p3)), flip(truncate_lat_lng(p4))]
-        elif cell_n_vertex[0] == 90:
-            p0 = (cell_s_vertex[0],lng180(cell_s_vertex[1]+rotation))
-            p1 = (cell_e_vertex[0],lng180(cell_e_vertex[1]+rotation))
-            p2 = (90.0,lng180(cell_e_vertex[1]+rotation))
-            p3 = (90.0,lng180(cell_w_vertex[1]+rotation))
-            p4 = (cell_w_vertex[0],lng180(cell_w_vertex[1]+rotation))
-            p5 = (cell_s_vertex[0],lng180(cell_s_vertex[1]+rotation))
-            """S, E, N-in, N-out, W, S"""
-            return [flip(truncate_lat_lng(p0)), flip(truncate_lat_lng(p1)), flip(truncate_lat_lng(p2)), flip(truncate_lat_lng(p3)), flip(truncate_lat_lng(p4)), flip(truncate_lat_lng(p5))]
-        """S, E, N, W, S"""
-        p0 = (cell_s_vertex[0],lng180(cell_s_vertex[1]+rotation))
-        p1 = (cell_e_vertex[0],lng180(cell_e_vertex[1]+rotation))
-        p2 = (cell_n_vertex[0],lng180(cell_n_vertex[1]+rotation))
-        p3 = (cell_w_vertex[0],lng180(cell_w_vertex[1]+rotation))
-        p4 = (cell_s_vertex[0],lng180(cell_s_vertex[1]+rotation))
-        return [flip(truncate_lat_lng(p0)), flip(truncate_lat_lng(p1)), flip(truncate_lat_lng(p2)), flip(truncate_lat_lng(p3)), flip(truncate_lat_lng(p4))]
-
     @staticmethod
     def alt_polygon(cell_key, cell_count = CELL_COUNT):
         rhomboid_num, x, y = get_cell_attributes(cell_key)
@@ -1449,118 +1720,6 @@ def get_cell_key_from_lat_lng(lat, lng, cell_count = None):
         yindex = int(cell_count * y_fraction)
     return get_cell_key((rhomboid_num, xindex, yindex))
 
-#def get_cell_key_from_lat_lng(lat, lng, cell_count = None):
-#    """Return the key for the cell in which the geographic latitude and longitude lie."""
-#    if cell_count == None:
-#        cell_count = CELL_COUNT
-#    rhomboid = Rhomboid(lat, lng, cell_count)
-#    rhomboid_num = rhomboid.num
-#    rhomboid_key = get_cell_key((rhomboid_num, 0, 0))
-#    polygon = Cell.alt_polygon(rhomboid_key, 1)
-#    """
-#    For South vertex at -90 latitude:
-#        S-out, E, N, W, S-in
-#    For North vertex at 90 latitude:
-#        S, E, N-in, N-out, W, S
-#    For all other cells:
-#        S, E, N, W, S
-#    """
-#    svertex = polygon[0]
-#    evertex = polygon[1]
-#    nvertex = polygon[2]
-#    wvertex = polygon[len(polygon)-2]
-#    xindex = 0
-#    yindex = 0
-#    north_face = False
-#    
-##    """Cartesian midpoints along edges."""
-##    midpoint_se = cartesian_midpoint(svertex,evertex)
-##    midpoint_en = cartesian_midpoint(evertex,nvertex)
-##    midpoint_nw = cartesian_midpoint(nvertex,wvertex)
-##    midpoint_ws = cartesian_midpoint(wvertex,svertex)
-##    dse = cartesian_distance(lat, lng, float(midpoint_se[LAT]), lng180(midpoint_se[LNG]), SEMI_MAJOR_AXIS)
-##    den = cartesian_distance(lat, lng, float(midpoint_en[LAT]), lng180(midpoint_en[LNG]), SEMI_MAJOR_AXIS)
-##    dnw = cartesian_distance(lat, lng, float(midpoint_nw[LAT]), lng180(midpoint_nw[LNG]), SEMI_MAJOR_AXIS)
-##    dws = cartesian_distance(lat, lng, float(midpoint_ws[LAT]), lng180(midpoint_ws[LNG]), SEMI_MAJOR_AXIS)
-##    """Cartesian distances from given lat, lng to vertexes."""
-##    if dse > dnw:
-##        """Cartesian northwest half."""
-##        if dws > den:
-##            """Cartesian north quarter."""
-##        else:
-##            """Cartesian west quarter."""
-##            
-##    else:
-##        """Cartesian southeast half."""
-##        if dws > den:
-##            """Cartesian east quarter."""
-##        else:
-##            """Cartesian south quarter."""
-#
-#    if rhomboid_num < 5:
-#        """Northern rhomboid."""
-#        crossing = get_nearest_lng_where_lat_crosses_circle(lat, wvertex, evertex)
-#        if crossing == None:
-#            north_face = True
-#    else:
-#        """Southern rhomboid."""
-#        crossing = get_nearest_lng_where_lat_crosses_circle(lat, evertex, wvertex)
-#        if crossing != None:
-#            north_face = True
-#    if north_face == True:
-#        """lat is in the northern half of rhomboid."""
-#        d0 = projected_distance_to_vertex(lat, lng, (float(nvertex[LAT]), lng180(nvertex[LNG])), SEMI_MAJOR_AXIS)
-#        d1 = projected_distance_to_vertex(lat, lng, (float(wvertex[LAT]), lng180(wvertex[LNG])), SEMI_MAJOR_AXIS)
-#        d2 = projected_distance_to_vertex(lat, lng, (float(evertex[LAT]), lng180(evertex[LNG])), SEMI_MAJOR_AXIS)
-#
-##        d0 = cartesian_distance(lat, lng, float(nvertex[LAT]), lng180(nvertex[LNG]), SEMI_MAJOR_AXIS)
-##        d1 = cartesian_distance(lat, lng, float(wvertex[LAT]), lng180(wvertex[LNG]), SEMI_MAJOR_AXIS)
-##        d2 = cartesian_distance(lat, lng, float(evertex[LAT]), lng180(evertex[LNG]), SEMI_MAJOR_AXIS)
-#
-#        if d0 < 1:
-#            xindex = cell_count - 1
-#            yindex = cell_count - 1
-#        else:
-#            if d1 < 1:
-#                yindex = cell_count - 1
-#                xindex = 0
-#            else:
-#                edge_fraction = Rhomboid.get_edge_fraction(d0, d1)
-#                xindex = cell_count - 1 - int(cell_count * edge_fraction)
-#            if d2 < 1:
-#                xindex = cell_count - 1
-#                yindex = 0
-#            else:   
-#                edge_fraction = Rhomboid.get_edge_fraction(d0, d2)
-#                yindex = cell_count - 1 - int(cell_count * edge_fraction)
-#    else:
-#        """lat is in the southern half of rhomboid."""
-#        d0 = projected_distance_to_vertex(lat, lng, (float(svertex[LAT]), lng180(svertex[LNG])), SEMI_MAJOR_AXIS)
-#        d1 = projected_distance_to_vertex(lat, lng, (float(evertex[LAT]), lng180(evertex[LNG])), SEMI_MAJOR_AXIS)
-#        d2 = projected_distance_to_vertex(lat, lng, (float(wvertex[LAT]), lng180(wvertex[LNG])), SEMI_MAJOR_AXIS)
-#
-##        d0 = cartesian_distance(lat, lng, float(svertex[LAT]), lng180(svertex[LNG]), SEMI_MAJOR_AXIS)
-##        d1 = cartesian_distance(lat, lng, float(evertex[LAT]), lng180(evertex[LNG]), SEMI_MAJOR_AXIS)
-##        d2 = cartesian_distance(lat, lng, float(wvertex[LAT]), lng180(wvertex[LNG]), SEMI_MAJOR_AXIS)
-#        
-#        if d0 < 1:
-#            xindex = 0
-#            yindex = 0
-#        else:
-#            if d1 < 1:
-#                xindex = cell_count - 1
-#                yindex = 0
-#            else:
-#                edge_fraction = Rhomboid.get_edge_fraction(d0, d1)
-#                xindex = int(cell_count * edge_fraction)
-#            if d2 < 1:
-#                yindex = cell_count - 1
-#                xindex = 0
-#            else:   
-#                edge_fraction = Rhomboid.get_edge_fraction(d0, d2)
-#                yindex = int(cell_count * edge_fraction)
-#    return get_cell_key((rhomboid_num, xindex, yindex))
-
 def is_point_in_bounding_box(lat, lng, bb):
     """
     Returns true if the point given by lat, lng is within the confines of the NW to SE-oriented bounding box
@@ -1672,52 +1831,13 @@ def get_oriented_bounding_box(from_ll, to_ll, orientation = 0):
 #            return -1
 #        return 0
                
-class CellPolygon(object):
-    def __init__(self, cellkey, polygon):
-        self._cellkey = cellkey
-        self._polygon = polygon
-        self._hashcode = hash((self._cellkey, self._polygon))
-        
-    def getcellkey(self): 
-        return self._cellkey
-    cellkey = property(getcellkey)
-        
-    def getpolygon(self):
-        return self._polygon
-    polygon = property(getpolygon)
-        
-    def __str__(self):
-        return str(self.__dict__)
-
-
-    def __ne__(self, other):
-        result = self.__eq__(other)
-        if result is NotImplemented:
-            return result
-        return not result
-
-    def __eq__(self, other):
-        if isinstance(other, CellPolygon):
-            return self._hashcode == other._hashcode
-        return NotImplemented
-
-    def __hash__(self):
-        return self._hashcode
-
-    def __cmp__(self, other):
-        if self.cellkey > other.cellkey:
-            return 1
-        elif self.cellkey < other.cellkey:
-            return -1
-        return 0
-
 def n_great_circle_distance(start_point, end_point, radius = SEMI_MAJOR_AXIS):
     """ Returns the distance along a great circle between two Points on the surface of a
     sphere using the Haversine formula.
     
     Arguments:
-        start_point - the starting Point of the great circle route, with coordinates in degrees
-        end_point - the ending Point of the great circle route, with coordinates in degrees
+        start_point - the starting Point of the great circle route, with coordinate in degrees
+        end_point - the ending Point of the great circle route, with coordinate in degrees
     """
     start_lat = math.radians(start_point.lat)
     start_lng = math.radians(start_point.lng)
@@ -2773,9 +2893,18 @@ def get_n_polygon_test():
         for y in range(cell_count): 
             logging.info('polygon for r=%s x=%s y=%s: %s' % (rhomboid_num,x,y, Cell.n_polygon(rhomboid_num, x, y, 2)))
     return True
-
+def adaptive_cell_test():
+    lng = -180
+    lat = 89.991666
+    key = AdaptiveCell.key(lng, lat)
+    center = AdaptiveCell.centerPoint(key)
+    polygon = AdaptiveCell.polygon(key)
+    logging.info('lng: %s lat: %s center: %s key: %s' % (lng, lat, center, key) )
+    logging.info('polygon: %s' % (polygon))
+    
 def test_suite(cell_count):
     testspass = True
+    testspass = testspass and adaptive_cell_test()
 #    testspass = testspass and get_rhomboid_polygon_test()
 #    testspass = testspass and get_cell_polygon_test(cell_count)
 #    testspass = testspass and great_circle_intersection_test()
@@ -2783,7 +2912,7 @@ def test_suite(cell_count):
 #    testspass = testspass and get_specific_cell_key_test(cell_count)
 #    testspass = testspass and get_cell_key_test(cell_count)
 #    testspass = testspass and get_rect_cell_key_from_lat_lng_test()
-    testspass = testspass and get_n_polygon_test()
+#    testspass = testspass and get_n_polygon_test()
 #    get_cell_key_from_lat_lng_test(cell_count)
 #    lat_crosses_circle_test()
 #    get_bounding_box_test()
@@ -2810,7 +2939,7 @@ if __name__ == '__main__':
 
     parser = OptionParser()
     parser.add_option("-c", "--command", dest="command",
-                      help="TGM command",
+                      help="TMG command",
                       default=None)
     parser.add_option("-f", "--from-ll", dest="from_ll",
                       help="From Lat/Lng",
@@ -2856,7 +2985,8 @@ if __name__ == '__main__':
         to_ll = map(float, options.to_ll.split(','))
         orientation = int(options.orientation)
         cell_count = int(options.cell_count)
-        print Cell.createBBAsKmlMesh(from_ll, to_ll, orientation, cell_count)
+        print AdaptiveCell.createBBAsKmlMesh(from_ll, to_ll, orientation, cell_count)
+#        print Cell.createBBAsKmlMesh(from_ll, to_ll, orientation, cell_count)
     if command == 'get_rhomboid_KML':
         rhomboid = int(options.rhomboid)
         cell_count = int(options.cell_count)
