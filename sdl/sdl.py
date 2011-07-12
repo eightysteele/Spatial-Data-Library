@@ -434,7 +434,6 @@ if __name__ == '__main__':
             args = shlex.split(command)
             subprocess.call(args)
 
-
 #Command line:
 # ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/37 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -n 120 -b 25000 &
 
@@ -450,3 +449,9 @@ if __name__ == '__main__':
 #Filesystem           1K-blocks      Used Available Use% Mounted on
 #/dev/sda2            223856640  87802392 124682912  42% /
 
+#After Tile 37 bulkload to worldclim-rmg, keeping all clipped intermediary files
+#Filesystem           1K-blocks      Used Available Use% Mounted on
+#/dev/sda2            223856640 113366084  99119220  54% /
+
+# Log saved in Tile37LoadLog2011-07-11.rtf
+# Total elapsed time for Tile 37 192048s for 4096401 cells, of which 3912757 are nonzerovals cells.
