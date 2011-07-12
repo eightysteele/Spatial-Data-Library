@@ -29,7 +29,7 @@ import simplejson
 
 COUCHDB_HOST = 'http://eighty.berkeley.edu'
 COUCHDB_PORT = 5984
-COUCHDB_DATABASE = 'sdl-dev'
+COUCHDB_DATABASE = 'sdl-rmg_t37'
 COUCHDB_DESIGN = 'api'
 COUCHDB_VIEW = 'cells'
 COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % (
