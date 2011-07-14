@@ -417,7 +417,7 @@ if __name__ == '__main__':
     
     logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s',
-                    filename=logfilename,
+                    filename=logfile,
                     filemode='w')    
 
     if command == 'clip':
@@ -448,9 +448,13 @@ if __name__ == '__main__':
             logging.info(command)
             args = shlex.split(command)
             subprocess.call(args)
+            command = 'rm %s' % (varpath)
+            logging.info(command)
+            args = shlex.split(command)
+            subprocess.call(args)
 
 #Command line to get tile 11:
-# ./sdl.py -c getworldclimtile -k 11 -v /home/tuco/Data/SDL/worldclim/11 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -f 30,0 -t 60,-30 -n 120 -b 25000 -l sdl-getworldclimtile-11.log &
+# ./sdl.py -c getworldclimtile -k 11 -v /home/tuco/Data/SDL/worldclim/11 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -f -150,60 -t -120,30 -n 120 -b 25000 -l sdl-getworldclimtile-11.log &
 
 #Command line to load tile 37:
 # ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/37 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -n 120 -b 25000 &
