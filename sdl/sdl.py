@@ -397,14 +397,29 @@ def _getoptions():
                       dest="batchsize",
                       help="The batch size (default 25,000)",
                       default=25000)
+    parser.add_option("-l", 
+                      "--logfile", 
+                      dest="logfile",
+                      help="The name of the log file",
+                      default=None)
     return parser.parse_args()[0]
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-
     options = _getoptions()
     command = options.command.lower()
+
+    if options.logfile:
+        logfile = os.path.join(options.workspace, options.logfile)
+    else:
+        logfilename = 'sdl-log-%s-%s' % (options.command, str(int(time.time())))
+        logfile = os.path.join(options.workspace, logfilename)
+
     
+    logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(message)s',
+                    filename=logfilename,
+                    filemode='w')    
+
     if command == 'clip':
         clipped = clip(options)
         logging.info('Finished command clip.')
@@ -434,8 +449,14 @@ if __name__ == '__main__':
             args = shlex.split(command)
             subprocess.call(args)
 
-#Command line:
+#Command line to get tile 11:
+# ./sdl.py -c getworldclimtile -k 11 -v /home/tuco/Data/SDL/worldclim/11 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -f 30,0 -t 60,-30 -n 120 -b 25000 -l sdl-getworldclimtile-11.log &
+
+#Command line to load tile 37:
 # ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/37 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -n 120 -b 25000 &
+
+#Command line to load tile 12 with logging:
+# ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/12 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 12 -f -120,60 -t -90,30 -n 120 -b 25000 > /home/tuco/SDL/workspace/tile12load.log &
 
 #Before clearing ~SDL/workspace of Tile 37 files
 #Filesystem           1K-blocks      Used Available Use% Mounted on
