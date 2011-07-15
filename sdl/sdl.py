@@ -174,7 +174,8 @@ class Tile(object):
             cellkey = row.get('CellKey')
             if not cells.has_key(cellkey):
                 cells[cellkey] = {
-                    '_id': cellkey, 
+                    '_id': cellkey,
+                    'tile': options.key,
                     'coords': getpolygon(cellkey, cells_per_degree),
                     'vars': {}
                     }            
