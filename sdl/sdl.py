@@ -234,14 +234,14 @@ class Tile(object):
         cells = []
         count = 0
         for cell in self.getcells():
+            cells.append(cell)
+            count += 1
             if count >= batchsize:
                 self._clip2intersect2couchdb(cells, options, batchnum)
                 count = 0
                 cells = []
                 batchnum += 1
                 continue
-            cells.append(cell)
-            count += 1
         if count > 0:
             self._clip2intersect2couchdb(cells, options, batchnum)
         t1 = time.time()
