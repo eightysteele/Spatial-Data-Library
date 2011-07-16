@@ -44,6 +44,24 @@ def maketile(options):
     tile = Tile(key, nwcorner, secorner, cells_per_degree)
     return tile
 
+def getworldclimtile(options):
+    varset = ['tmean','tmin','tmax','prec','alt','bio']
+    for var in varset:
+        varfile = '%s_%s.zip' % (var, options.key)
+        varpath = os.path.join(options.vardir, varfile)
+        command = 'wget -P %s http://biogeo.ucdavis.edu/data/climate/worldclim/1_4/tiles/cur/%s' % (options.vardir, varfile)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
+        command = 'unzip %s -d %s' % (varpath, options.vardir)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
+        command = 'rm %s' % (varpath)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
+
 def clip(options):
     key = options.key
     nw = map(float, options.nwcorner.split(','))
@@ -422,43 +440,44 @@ if __name__ == '__main__':
                     filemode='w')    
 
     if command == 'clip':
+        logging.info('Beginning command clip.')
         clipped = clip(options)
         logging.info('Finished command clip.')
 
     if command == 'csv2couchdb':
+        logging.info('Beginning command csv2couch.')
         tile = maketile(options)
         csvfile = os.path.join(options.workspace, options.csvfile)
         tile.csv2couch(csvfile, options)
         logging.info('Finished command csv2couch.')
 
     if command == 'load':
+        logging.info('Beginning command load.')
         clipped = clip(options)
         load(options, clipped)    
         logging.info('Finished command load.')
 
     if command == 'getworldclimtile':
-        varset = ['tmean','tmin','tmax','prec','alt','bio']
-        for var in varset:
-            varfile = '%s_%s.zip' % (var, options.key)
-            varpath = os.path.join(options.vardir, varfile)
-            command = 'wget -P %s http://biogeo.ucdavis.edu/data/climate/worldclim/1_4/tiles/cur/%s' % (options.vardir, varfile)
-            logging.info(command)
-            args = shlex.split(command)
-            subprocess.call(args)
-            command = 'unzip %s -d %s' % (varpath, options.vardir)
-            logging.info(command)
-            args = shlex.split(command)
-            subprocess.call(args)
-            command = 'rm %s' % (varpath)
-            logging.info(command)
-            args = shlex.split(command)
-            subprocess.call(args)
+        logging.info('Beginning command getworldclimtile.')
+        getworldclimtile(options)
+        logging.info('Finished command getworldclimtile.')
+
+    if command == 'full':
+        logging.info('Beginning command full.')
+        getworldclimtile(options)
+        clipped = clip(options)
+        load(options, clipped)    
+        logging.info('Finished command full.')
+
 
 #Command line to get tile 11:
 # ./sdl.py -c getworldclimtile -k 11 -v /home/tuco/Data/SDL/worldclim/11 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -f -150,60 -t -120,30 -n 120 -b 25000 -l sdl-getworldclimtile-11.log &
 
+#Command line to load tile 21:
+# ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/21 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 21 -f -150,30 -t -120,0 -n 120 -b 25000 -l sdl-load-tile21.log > /home/tuco/SDL/workspace/tile21starspan.log &
+
 #Command line to load tile 37:
-# ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/37 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -n 120 -b 25000 &
+# ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/37 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -n 120 -b 25000 -l sdl-load-tile37.log > /home/tuco/SDL/workspace/tile37starspan.log &
 
 #Command line to load tile 12 with logging:
 # ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/12 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 12 -f -120,60 -t -90,30 -n 120 -b 25000 > /home/tuco/SDL/workspace/tile12load.log &
