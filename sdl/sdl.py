@@ -63,14 +63,14 @@ def getworldclimtile(options):
                 key - the tile identifier (e.g., '37' for Worldclim tile 37)
                 vardir - the path to the directory in which to store the Worldclim files
     """
+    if os.path.exists(options.vardir):
+        command = 'rm -r %s' % (options.vardir)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
+
     varset = ['tmean','tmin','tmax','prec','alt','bio']
     for var in varset:
-        if os.path.exists(options.vardir):
-            command = 'rm -r %s' % (options.vardir)
-            logging.info(command)
-            args = shlex.split(command)
-            subprocess.call(args)
-
         command = 'mkdir %s' % (options.vardir)
         logging.info(command)
         args = shlex.split(command)

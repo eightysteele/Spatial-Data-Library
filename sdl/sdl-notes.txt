@@ -1,0 +1,56 @@
+# Examples:
+# Command line to get variables for worldclim tile 21:
+./sdl.py -c getworldclimtile -k 21 -v /home/tuco/Data/SDL/worldclim/21 -w /home/tuco/SDL/workspace
+
+# Command line to load tile 21 (requires that getworldclimtile has been run for the tile
+./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/21 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 21 -f -150,30 -t -120,0 -n 120 -b 25000 -l sdl-load-tile21.log > /home/tuco/SDL/workspace/tile21starspan.log &
+
+#Command line to fully process tile 38 to its own CouchDB database. Database must exist in advance. Put the starspan output in its own file:
+./sdl.py -c full -v /home/tuco/Data/SDL/worldclim/38 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg-38 -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 38 -f 60,0 -t 30,-30 -n 120 -b 25000 > /home/tuco/SDL/workspace/tile37starspan.log &
+
+./sdl.py -c full -v /home/tuco/Data/SDL/worldclim/32 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg-32 -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 32 -f 60,0 -t 30,-30 -n 120 -b 50000 > /home/tuco/SDL/workspace/tile32starspan.log &
+
+#Command line to load tile 12 with logging:
+./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/12 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 12 -f -120,60 -t -90,30 -n 120 -b 25000 > /home/tuco/SDL/workspace/tile12load.log &
+
+#Before clearing ~SDL/workspace of Tile 37 files
+#Filesystem           1K-blocks      Used Available Use% Mounted on
+#/dev/sda2            223856640 124558204  87927100  59% /
+
+#After clearing ~SDL/workspace of Tile 37 files
+#Filesystem           1K-blocks      Used Available Use% Mounted on
+#/dev/sda2            223856640 106658316 105826988  51% /
+
+#Before Tile 37 bulkload to worldclim-rmg sans view sdl/zerovalues
+#Filesystem           1K-blocks      Used Available Use% Mounted on
+#/dev/sda2            223856640  87802392 124682912  42% /
+
+#After Tile 37 bulkload to worldclim-rmg, keeping all clipped intermediary files
+#Filesystem           1K-blocks      Used Available Use% Mounted on
+#/dev/sda2            223856640 113366084  99119220  54% /
+
+# Log saved in Tile37LoadLog2011-07-11.rtf
+# Total elapsed time for Tile 37 192048s for 4096401 cells, of which 3912757 are nonzerovals cells.
+
+# Tile 32
+# Total elapsed time for Tile 32 6976s for 22765 cells, of which 8289 are nonzerovals cells.
+
+Tile 12
+253 batches completed from 2011-07-13:12:40 to 2011-07-16:16:55
+then deleted api/cells and sdl/zerovals
+x batches completed from 2011-07-16:16:55 to XXX
+
+
+_design/api/cells
+function(doc) {
+  emit(doc._id, {rev:doc._rev, coords:doc.coords, varvals:doc.vars});
+}
+
+_design/sdl/zerovals
+function(doc) {
+  if(doc.vars.tmax12 && doc.vars.tmin12){
+    if(doc.vars.tmax12 === "0" && doc.vars.tmin12 === "0"){
+      emit(doc._id, doc._rev);
+    }
+  }
+}
