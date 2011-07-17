@@ -35,6 +35,16 @@ import subprocess
 from rmg import *
 
 def maketile(options):
+    """ Creates a Tile object from the command line arguments.
+    
+        Arguments:
+            options - the options parsed from the command line. Uses:
+                key - the tile identifier (e.g., '37' for Worldclim tile 37)
+                nwcorner - the northwest corner of the Tile
+                secorner - the southeast corner of the Tile
+                cells_per_degree - the number of cells in a degree of longitude at
+                    the equator - defines a resolution for the grid system.
+    """
     key = options.key
     nw = map(float, options.nwcorner.split(','))
     se = map(float, options.secorner.split(','))
@@ -45,24 +55,57 @@ def maketile(options):
     return tile
 
 def getworldclimtile(options):
+    """ Downloads the files for all of the variables for the Tile given by the Tile key
+        in the command line, unzips them, and removes the zipfile.
+        
+        Arguments:
+            options - the options parsed from the command line. Uses:
+                key - the tile identifier (e.g., '37' for Worldclim tile 37)
+                vardir - the path to the directory in which to store the Worldclim files
+    """
     varset = ['tmean','tmin','tmax','prec','alt','bio']
     for var in varset:
+        if os.path.exists(options.vardir):
+            command = 'rm -r %s' % (options.vardir)
+            logging.info(command)
+            args = shlex.split(command)
+            subprocess.call(args)
+
+        command = 'mkdir %s' % (options.vardir)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
+
         varfile = '%s_%s.zip' % (var, options.key)
         varpath = os.path.join(options.vardir, varfile)
         command = 'wget -P %s http://biogeo.ucdavis.edu/data/climate/worldclim/1_4/tiles/cur/%s' % (options.vardir, varfile)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
+
         command = 'unzip %s -d %s' % (varpath, options.vardir)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
+        
         command = 'rm %s' % (varpath)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
 
 def clip(options):
+    """ Creates a clipped Tile object and associated files from the command line arguments.
+        Returns a clipped Tile object.
+    
+        Arguments:
+            options - the options parsed from the command line. Uses:
+                key - the tile identifier (e.g., '37' for Worldclim tile 37)
+                nwcorner - the northwest corner of the Tile
+                secorner - the southeast corner of the Tile
+                cells_per_degree - the number of cells in a degree of longitude at
+                    the equator - defines a resolution for the grid system.
+                gadm - the shapefile to clip to (polygon of are containing Worldclim data)
+    """
     key = options.key
     nw = map(float, options.nwcorner.split(','))
     se = map(float, options.secorner.split(','))
@@ -74,47 +117,70 @@ def clip(options):
     return clipped
 
 def load(options, clipped):
+    """ Loads a clipped Tile object to CouchDB using the command line arguments.
+    
+        Arguments:
+            options - the options parsed from the command line
+    """
     clipped.bulkload2couchdb(options)
 
 def getpolygon(key, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
+    """Returns a polygon (list of Points) of the cell defined by the given key.
+
+    Arguments:
+        key - the unique identifier for a cell
+        cells_per_degree - the desired resolution of the grid
+        digits - the number of digits of precision to retain in the coordinates
+        a - the semi-major axis of the ellipsoid for the coordinate reference system
+        inverse_flattening - the inverse of the ellipsoid's flattening parameter
+    """
     return RMGCell.polygon(key, cells_per_degree, digits, a, inverse_flattening)
 
-def translatevariable(varname, varval):
+def translatevariable(varval):
+    """ Returns a translated value for a starspan-processed Worldclim variable. Translation includes
+        returning spurious large integer values (starspan must use an unsigned short int at some point)
+        to their correct negative values, then truncating these values to be integers.
+        
+        Arguments:
+            varval - the variable value as returned from starspan
+    """
     newval = float(varval)
     if newval > 55537: # Actual value is a negative number greater than the nodata value of -9999
         newval = newval - 65536
     newval = truncate(newval,0)
     return newval
 
-class Variable(object):
-    """An environmental variable backed by a .bil and a .hdr file."""
+#class Variable(object):
+#    """An environmental variable backed by a .bil and a .hdr file."""
+#
+#    def __init__(self, bilfile, hdrfile):
+#        """Constructs a Variable.
+#
+#        Arguments:
+#            bilfile - The .bil file path.
+#            hdrfile - The .hdr file path.
+#        """
+#        self.bilfile = bilfile
+#        self.hdrfile = hdrfile
+#        
+#        # Loads xmin, xmax, ymin, and ymax values from the .hdr file:
+#        for line in open(hdrfile, 'r'):
+#            if line.startswith('MaxX'):
+#                self.xmax = int(line.split()[1].strip())
+#            elif line.startswith('MinX'):
+#                self.xmin = int(line.split()[1].strip())
+#            elif line.startswith('MaxY'):
+#                self.ymax = int(line.split()[1].strip())
+#            elif line.startswith('MinY'):
+#                self.ymin = int(line.split()[1].strip())
 
-    def __init__(self, bilfile, hdrfile):
-        """Constructs a Variable.
-
-        Arguments:
-            bilfile - The .bil file path.
-            hdrfile - The .hdr file path.
-        """
-        self.bilfile = bilfile
-        self.hdrfile = hdrfile
-        
-        # Loads xmin, xmax, ymin, and ymax values from the .hdr file:
-        for line in open(hdrfile, 'r'):
-            if line.startswith('MaxX'):
-                self.xmax = int(line.split()[1].strip())
-            elif line.startswith('MinX'):
-                self.xmin = int(line.split()[1].strip())
-            elif line.startswith('MaxY'):
-                self.ymax = int(line.split()[1].strip())
-            elif line.startswith('MinY'):
-                self.ymin = int(line.split()[1].strip())
-
-class TileCell(object):
-    """A cell for a Tile described by a polygon with geographic coordinates."""
+class Cell(object):
+    """ A cell described by a key, a polygon, and a grid resolution defined by
+        cells_per_degree.
+    """
 
     def __init__(self, key, polygon, cells_per_degree):
-        """Constructs a TileCell.
+        """Constructs a Cell.
 
         Arguments:
         """
@@ -126,7 +192,9 @@ class TileCell(object):
         return str(self.__dict__)
     
 class Tile(object):
-    """A geographic tile defined by a geographic coordinate bounding box."""
+    """ A tile defined by a geographic coordinate bounding box and the parameters of 
+        a coordinate reference system.
+    """
 
     def __init__(self, key, nwcorner, secorner, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING, filename=None):
         """Tile constructor.
@@ -140,7 +208,7 @@ class Tile(object):
             a - the semi-major axis of the ellipsoid for the coordinate reference system
             inverse_flattening - the inverse of the ellipsoid's flattening parameter 
                 (298.257223563 for WGS84)
-            filename - The name of the input Shapefile for the Tile.
+            filename - the name of the constructed shapefile for the boundaries of the Tile.
         """
         self.key = key
         self.nwcorner = nwcorner
@@ -154,10 +222,22 @@ class Tile(object):
     def __str__(self):
         return str(self.__dict__)
 
-    def _clip2intersect2couchdb(self, cells, options, batchnum):
+    def cellbatch2clip2csv2couchdb(self, cells, options, batchnum):
+        """ Creates a shapefile for a numbered batch of cells, clips the cells shapefile by 
+            the shapefile created from the intersection of the file provided in the gadm
+            parameter and the Tile boundary, creates the csv file using starspan to get the 
+            variable value statistics out of the Worldclim tile, and finally uploads the 
+            resulting cells to CouchDB.
+            
+            Arguments:
+                cells - the list of cells in the batch with their keys and polygons
+                options - the options parsed from the command line
+                batchnum - the sequential number of the batch of cells
+
+        """
         t0 = time.time()
         filename = os.path.join(os.path.splitext(self.filename)[0], '%s' % batchnum)
-        logging.info('Preparing shapefile %s in _clip2intersect2couchdb().' % (filename) )
+        logging.info('Preparing shapefile %s in cellbatch2clip2csv2couchdb().' % (filename) )
         w = shapefile.Writer(shapefile.POLYGON)
         w.field('CellKey','C','255')
         for cell in cells:
@@ -165,13 +245,13 @@ class Tile(object):
             w.record(CellKey=cell.key)
         w.save(filename)        
         t1 = time.time()
-        logging.info('Shapefile %s prepared in %s' % (filename, t1-t0))
+        logging.info('Cell batch shapefile %s prepared in %s' % (filename, t1-t0))
         clippedfile = Tile.clip2cell('%s.shp' % filename, self.filename)
-        csvfile = Tile.intersect(clippedfile, options)
+        csvfile = Tile.statistics2csv(clippedfile, options)
         Tile.csv2couch(csvfile, options)
 
     def polygon(self):
-        """Returns a polygon (list of Points) for the Tile."""
+        """ Returns a closed polygon (list of Points - nw, sw, se, ne, nw) for the Tile."""
         n = float(truncate(self.nwcorner.lat, self.digits))
         s = float(truncate(self.secorner.lat, self.digits))
         w = float(truncate(self.nwcorner.lng, self.digits))
@@ -180,7 +260,14 @@ class Tile(object):
 
     @classmethod
     def csv2couch(cls, csvfile, options):
-        """Loads values from csv file to couchdb."""
+        """ Loads cells from csv file to CouchDB.
+            
+            Arguments:
+                csvfile - the CSV file containing the cells to load
+                options - the options parsed from the command line. Uses:
+                    couchurl - the URL of the CouchDB server
+                    cells_per_degree - the desired resolution of the grid
+        """
         t0 = time.time()
         logging.info('Beginning csv2couch(), preparing cells for bulkloading from %s.' % (csvfile) )
         server = couchdb.Server(options.couchurl)
@@ -201,7 +288,7 @@ class Tile(object):
             # the following dependent on running starspan with --stats %s avg
             varval = row.get('avg_Band1')
             # the following need for Worldclim because of the -9999 NODATA value.
-            cells.get(cellkey).get('vars')[varname] = translatevariable(varname, varval)
+            cells.get(cellkey).get('vars')[varname] = translatevariable(varval)
         t1 = time.time()
         logging.info('%s cells prepared for upload in %s' % (len(cells), t1-t0))
         cdb.update(cells.values())
@@ -209,8 +296,15 @@ class Tile(object):
         logging.info('%s documents uploaded in %s' % (len(cells), t2-t1))
 
     @classmethod
-    def intersect(cls, shapefile, options):      
-        """Intersects features in a shapefile with variables via starspan."""
+    def statistics2csv(cls, shapefile, options):      
+        """ Extracts statistics on variables in the Worldclim tile for the cells
+            in the shapefile via starspan.
+
+            Arguments:
+                shapefile - the shapefile containing the cells
+                options - the options parsed from the command line. Uses:
+                    vardir - the path to the directory in which to store the Worldclim files
+        """
         t0 = time.time()
         logging.info('Beginning starspan statistics on %s.' % (shapefile) )
         variables = [os.path.join(options.vardir, x) \
@@ -221,7 +315,6 @@ class Tile(object):
         # Call starspan requesting mean of variable, exclusing nodata values (-9999 in the file is the same as 55537)
         command = 'starspan --vector %s --raster %s --stats %s avg --nodata 55537' \
             % (shapefile, variables, csvfile)
-#        logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
         t1 = time.time()
@@ -230,13 +323,18 @@ class Tile(object):
         
     @classmethod
     def clip2cell(cls, src, shapefile):
-        """Clips src by shapefile and returns clipped shapefile name."""
+        """ Creates a new shapefile that is the intersection of the src file 
+            and the given shapefile. Returns the name of the clipped shapefile.
+            
+            Arguments:
+                src - the file to intersect with the shapefile
+                shapefile - the shapefile to intersect with the src
+        """
         t0 = time.time()
         logging.info('Beginning clipping of %s by %s.' % (src, shapefile) )
         ogr2ogr = '/usr/local/bin/ogr2ogr'
         clipped = src.replace('.shp', '-clipped.shp')
         command = '%s -clipsrc %s %s %s' % (ogr2ogr, shapefile, clipped, src)
-#        logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
         t1 = time.time()
@@ -244,7 +342,14 @@ class Tile(object):
         return clipped
                 
     def bulkload2couchdb(self, options):
-        """Bulkloads the tile to CouchDB using command line options."""
+        """ Loads the Tile to CouchDB using the command line arguments.
+        
+            Arguments:
+                options - the options parsed from the command line. Uses:
+                    batchsize - the number of cells to include in a batch to avoid memory overflow
+                    cells_per_degree - the number of cells in a degree of longitude at
+                        the equator - defines a resolution for the grid system.
+        """
         t0 = time.time()
         logging.info('Beginning bulkload2couchdb().')
         batchsize = int(options.batchsize)
@@ -256,22 +361,23 @@ class Tile(object):
             cells.append(cell)
             count += 1
             if count >= batchsize:
-                self._clip2intersect2couchdb(cells, options, batchnum)
+                self.cellbatch2clip2csv2couchdb(cells, options, batchnum)
                 count = 0
                 cells = []
                 batchnum += 1
                 continue
         if count > 0:
-            self._clip2intersect2couchdb(cells, options, batchnum)
+            self.cellbatch2clip2csv2couchdb(cells, options, batchnum)
         t1 = time.time()
         logging.info('Total elapsed time to bulkload2couchdb(): %s' % (t1-t0))
     
     def clip(self, shapefile, workspace):
-        """Returns a Tile clipped by shapefile.
+        """ Creates a new shapefile in the workspace that is the intersection of 
+            this Tile and the given shapefile. Returns a Tile clipped by shapefile.
         
-        Arguments:
-            shapefile - the shape file with which to clip the Tile
-            workspace - the directory to store the clipped shape file
+            Arguments:
+                shapefile - the shapefile to clip by the boundaries of the Tile
+                workspace - the directory in which to store the clipped shape file
         """
         t0 = time.time()
         ogr2ogr = '/usr/local/bin/ogr2ogr'
@@ -287,11 +393,12 @@ class Tile(object):
         return Tile(self.key, self.nwcorner, self.secorner, self.cells_per_degree, self.digits, self.a, self.inverse_flattening, clipped)
 
     def writetileshapefile(self, workspace):
-        """Writes a shapefile for the Tile the filename.
+        """ Writes a shapefile ([self.key].dbf, [self.key].shp, [self.key].shx) for boundaries 
+            of the Tile.
         
-        Arguments:
-            workspace - the directory to store the clipped shape file
-            """
+            Arguments:
+                workspace - the directory to store the clipped shape file
+        """
         fout = os.path.join(workspace, self.key)
         w = shapefile.Writer(shapefile.POLYGON)
         w.field('TileKey','C','255')
@@ -300,20 +407,26 @@ class Tile(object):
         w.save(fout)        
         return '%s.shp' % fout
 
-    def writeshapefile(self, workspace):
-        """Writes tile shapefile in workspace directory and returns filename."""
-        cell = self.getcells().next()
-        cellinfo = 'Cell: %s' % (cell)
-        fout = os.path.join(workspace, cell.key)
-        w = shapefile.Writer(shapefile.POLYGON)
-        w.field('CellKey','C','255')
-        w.poly(parts=[cell.polygon])
-        w.record(CellKey=cell.key)
-        w.save(fout)        
-        return '%s.shp' % fout
+#    def writeshapefile(self, workspace):
+#        """Writes tile shapefile in workspace directory and returns filename.
+#        
+#        Arguments:
+#            workspace - the directory to store the clipped shape file
+#        """
+#        cell = self.getcells().next()
+#        cellinfo = 'Cell: %s' % (cell)
+#        fout = os.path.join(workspace, cell.key)
+#        w = shapefile.Writer(shapefile.POLYGON)
+#        w.field('CellKey','C','255')
+#        w.poly(parts=[cell.polygon])
+#        w.record(CellKey=cell.key)
+#        w.save(fout)        
+#        return '%s.shp' % fout
 
     def getcells(self):
-        """Iterates over a set of polygons for cells intersecting a bounding box.""" 
+        """ Yields Cells by iterating west to east, north to south over RMG cells
+            within the bounding box of a Tile.
+        """ 
         north = self.nwcorner.lat
         west = self.nwcorner.lng
         south = self.secorner.lat
@@ -335,9 +448,7 @@ class Tile(object):
             while lng < east:
                 key = str(x_index)+'-'+str(y_index)
                 polygon = tuple([(float(x[0]), float(x[1])) for x in RMGCell.polygon(key, self.cells_per_degree, self.digits, self.a, self.inverse_flattening)])
-#                yieldingthis = 'Yield CellKey=%s: lat: %s lng: %s' % (key, lat, lng)
-#                logging.info(yieldingthis)
-                yield TileCell(key, polygon, self.cells_per_degree)
+                yield Cell(key, polygon, self.cells_per_degree)
                 if crosses_180 == True and crossed == False:
                     elng = RMGCell.east(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
                     wlng = RMGCell.west(x_index, y_index, self.cells_per_degree, self.a, self.inverse_flattening) - 360
@@ -364,7 +475,7 @@ class Tile(object):
             x_index = int(indexes[0])
 
 def _getoptions():
-    """Parses command line options and returns them."""
+    """ Parses command line options and returns them."""
     parser = OptionParser()
     parser.add_option("-c", "--command", dest="command",
                       help="SDL command",
@@ -382,7 +493,7 @@ def _getoptions():
     parser.add_option("-p", 
                       "--csvfile", 
                       dest="csvfile",
-                      help="A clipped variables csv file to intersect and load.",
+                      help="A clipped variables csv file to statistics2csv and load.",
                       default=None)
     parser.add_option("-u", 
                       "--couchurl", 
@@ -430,10 +541,9 @@ if __name__ == '__main__':
     if options.logfile:
         logfile = os.path.join(options.workspace, options.logfile)
     else:
-        logfilename = 'sdl-log-%s-%s' % (options.command, str(int(time.time())))
+        logfilename = 'sdl-%s-%s-%s.log' % (options.command, options.key, str(int(time.time())))
         logfile = os.path.join(options.workspace, logfilename)
 
-    
     logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s',
                     filename=logfile,
@@ -441,62 +551,40 @@ if __name__ == '__main__':
 
     if command == 'clip':
         logging.info('Beginning command clip.')
+        t0 = time.time()
         clipped = clip(options)
-        logging.info('Finished command clip.')
+        t1 = time.time()
+        logging.info('Finished command clip in %ss.' % (t1-t0))
 
     if command == 'csv2couchdb':
         logging.info('Beginning command csv2couch.')
+        t0 = time.time()
         tile = maketile(options)
         csvfile = os.path.join(options.workspace, options.csvfile)
         tile.csv2couch(csvfile, options)
-        logging.info('Finished command csv2couch.')
+        t1 = time.time()
+        logging.info('Finished command csv2couch in %ss.' % (t1-t0))
 
     if command == 'load':
         logging.info('Beginning command load.')
+        t0 = time.time()
         clipped = clip(options)
         load(options, clipped)    
-        logging.info('Finished command load.')
+        t1 = time.time()
+        logging.info('Finished command load in %ss.' % (t1-t0))
 
     if command == 'getworldclimtile':
         logging.info('Beginning command getworldclimtile.')
+        t0 = time.time()
         getworldclimtile(options)
-        logging.info('Finished command getworldclimtile.')
+        t1 = time.time()
+        logging.info('Finished command getworldclimtile in %ss.' % (t1-t0))
 
     if command == 'full':
         logging.info('Beginning command full.')
+        t0 = time.time()
         getworldclimtile(options)
         clipped = clip(options)
         load(options, clipped)    
-        logging.info('Finished command full.')
-
-
-#Command line to get tile 11:
-# ./sdl.py -c getworldclimtile -k 11 -v /home/tuco/Data/SDL/worldclim/11 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -f -150,60 -t -120,30 -n 120 -b 25000 -l sdl-getworldclimtile-11.log &
-
-#Command line to load tile 21:
-# ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/21 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 21 -f -150,30 -t -120,0 -n 120 -b 25000 -l sdl-load-tile21.log > /home/tuco/SDL/workspace/tile21starspan.log &
-
-#Command line to load tile 37:
-# ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/37 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 37 -f 30,0 -t 60,-30 -n 120 -b 25000 -l sdl-load-tile37.log > /home/tuco/SDL/workspace/tile37starspan.log &
-
-#Command line to load tile 12 with logging:
-# ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/12 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 12 -f -120,60 -t -90,30 -n 120 -b 25000 > /home/tuco/SDL/workspace/tile12load.log &
-
-#Before clearing ~SDL/workspace of Tile 37 files
-#Filesystem           1K-blocks      Used Available Use% Mounted on
-#/dev/sda2            223856640 124558204  87927100  59% /
-
-#After clearing ~SDL/workspace of Tile 37 files
-#Filesystem           1K-blocks      Used Available Use% Mounted on
-#/dev/sda2            223856640 106658316 105826988  51% /
-
-#Before Tile 37 bulkload to worldclim-rmg sans view sdl/zerovalues
-#Filesystem           1K-blocks      Used Available Use% Mounted on
-#/dev/sda2            223856640  87802392 124682912  42% /
-
-#After Tile 37 bulkload to worldclim-rmg, keeping all clipped intermediary files
-#Filesystem           1K-blocks      Used Available Use% Mounted on
-#/dev/sda2            223856640 113366084  99119220  54% /
-
-# Log saved in Tile37LoadLog2011-07-11.rtf
-# Total elapsed time for Tile 37 192048s for 4096401 cells, of which 3912757 are nonzerovals cells.
+        t1 = time.time()
+        logging.info('Finished command full in %ss.' % (t1-t0))
