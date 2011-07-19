@@ -13,39 +13,15 @@
 #Command line to load tile 12 with logging:
 ./sdl.py -c load -v /home/tuco/Data/SDL/worldclim/12 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 12 -f -120,60 -t -90,30 -n 120 -b 25000 > /home/tuco/SDL/workspace/tile12load.log &
 
-#Before clearing ~SDL/workspace of Tile 37 files
-#Filesystem           1K-blocks      Used Available Use% Mounted on
-#/dev/sda2            223856640 124558204  87927100  59% /
+#CouchDB views
 
-#After clearing ~SDL/workspace of Tile 37 files
-#Filesystem           1K-blocks      Used Available Use% Mounted on
-#/dev/sda2            223856640 106658316 105826988  51% /
-
-#Before Tile 37 bulkload to worldclim-rmg sans view sdl/zerovalues
-#Filesystem           1K-blocks      Used Available Use% Mounted on
-#/dev/sda2            223856640  87802392 124682912  42% /
-
-#After Tile 37 bulkload to worldclim-rmg, keeping all clipped intermediary files
-#Filesystem           1K-blocks      Used Available Use% Mounted on
-#/dev/sda2            223856640 113366084  99119220  54% /
-
-# Log saved in Tile37LoadLog2011-07-11.rtf
-# Total elapsed time for Tile 37 192048s for 4096401 cells, of which 3912757 are nonzerovals cells.
-
-# Tile 32
-# Total elapsed time for Tile 32 6976s for 22765 cells, of which 8289 are nonzerovals cells.
-
-Tile 12
-253 batches completed from 2011-07-13:12:40 to 2011-07-16:16:55
-then deleted api/cells and sdl/zerovals
-x batches completed from 2011-07-16:16:55 to XXX
-
-
+#For the API
 _design/api/cells
 function(doc) {
   emit(doc._id, {rev:doc._rev, coords:doc.coords, varvals:doc.vars});
 }
 
+#To isolate cells having values = 0 for all variables
 _design/sdl/zerovals
 function(doc) {
   if(doc.vars.tmax12 && doc.vars.tmin12){
