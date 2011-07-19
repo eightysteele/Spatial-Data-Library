@@ -68,14 +68,14 @@ def getworldclimtile(options):
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
+    command = 'mkdir %s' % (options.vardir)
+    logging.info(command)
+    args = shlex.split(command)
+    subprocess.call(args)
+
 
     varset = ['tmean','tmin','tmax','prec','alt','bio']
     for var in varset:
-        command = 'mkdir %s' % (options.vardir)
-        logging.info(command)
-        args = shlex.split(command)
-        subprocess.call(args)
-
         varfile = '%s_%s.zip' % (var, options.key)
         varpath = os.path.join(options.vardir, varfile)
         command = 'wget -P %s http://biogeo.ucdavis.edu/data/climate/worldclim/1_4/tiles/cur/%s' % (options.vardir, varfile)
@@ -116,12 +116,35 @@ def clip(options):
     clipped = tile.clip(options.gadm, options.workspace)
     return clipped
 
+def cleanworkspace(options):
+    if os.path.exists(options.workspace):
+        base = '%s-clipped' % options.key
+        basedir = os.path.join(options.workspace, base)
+        if os.path.exists(basedir):
+            basedirall = os.path.join(options.workspace, options.key) 
+            command = 'rm -r %s*' % (basedirall)
+            logging.info(command)
+            args = shlex.split(command)
+            subprocess.call(args)
+
+        base = os.path.join(options.workspace, options.key)
+        command = 'rm %s*' % (base)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
+    else:
+        command = 'mkdir %s-clipped' % (base)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
+
 def load(options, clipped):
     """ Loads a clipped Tile object to CouchDB using the command line arguments.
     
         Arguments:
             options - the options parsed from the command line
     """
+    cleanworkspace(options)
     clipped.bulkload2couchdb(options)
 
 def getpolygon(key, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
@@ -539,12 +562,18 @@ if __name__ == '__main__':
     command = options.command.lower()
 
     if options.logfile:
-        logfile = os.path.join(options.workspace, options.logfile)
+        if options.logfile == 'none':
+            logging.basicConfig(level=logging.DEBUG)
+        else:
+            logfile = os.path.join(options.workspace, options.logfile)
+            logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(message)s',
+                    filename=logfile,
+                    filemode='w')    
     else:
         logfilename = 'sdl-%s-%s-%s.log' % (options.command, options.key, str(int(time.time())))
         logfile = os.path.join(options.workspace, logfilename)
-
-    logging.basicConfig(level=logging.DEBUG,
+        logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s',
                     filename=logfile,
                     filemode='w')    
@@ -588,3 +617,10 @@ if __name__ == '__main__':
         load(options, clipped)    
         t1 = time.time()
         logging.info('Finished command full in %ss.' % (t1-t0))
+
+    if command == 'cleanworkspace':
+        logging.info('Beginning command cleanworkspace.')
+        t0 = time.time()
+        cleanworkspace(options)
+        t1 = time.time()
+        logging.info('Finished command cleanworkspace in %ss.' % (t1-t0))
