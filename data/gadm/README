@@ -1,0 +1,25 @@
+Terrestrial-10min-unbuffered-dissolved is an ESRI Shapefile as a 
+single shape containing all of the area for which the there are
+Worlclim data at 10-minute resolution. This file is used as a 
+clipping layer against the rectangular grid cells, the result of
+which is used in variable extraction for the remaining cells using 
+starspan.
+
+The source of Terrestrial-10min-unbuffered-dissolved.shp was the 
+file tmean12.bil from the 10 minute Worldclim Mean Temperature data set 
+(http://biogeo.ucdavis.edu/data/climate/worldclim/1_4/tiles/cur/tmean_10m_bil.zip).
+
+The file was produced by several processing steps:
+
+1. gdal_polygonize tmean12.bil to turn the raster source into a shape
+derivative covering the area having data.
+
+2. Use QGIS Dissolve on the Variable DN to produce an intermediary
+shape file having one shape for every value of the DN column. This step
+was slow, but it made for a rapid step 3.
+
+3. Use QGIS Dissolve on all variables to produce the file shapefile
+having one shape for all of the area having data. Attempts to produce
+this dissolve directly from the results of step 1 repeatedly failed
+after more than 24 hours of processing, hence the addition of step 2.
+
