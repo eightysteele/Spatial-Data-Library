@@ -108,6 +108,13 @@ class RMGTest(unittest.TestCase):
         tile = RMGTile(nwcorner, secorner, cells_per_degree)
         cellcount = tile.cellcount()
         self.assertEqual(cellcount, 3334514)
+        # WorldClim Tile 11 cell count
+        nwcorner = Point(-150, 60)
+        secorner = Point(-120, 30)
+        cells_per_degree = 120
+        tile = RMGTile(nwcorner, secorner, cells_per_degree)
+        cellcount = tile.cellcount()
+        self.assertEqual(cellcount, 9058790)
         # WorldClim Tile 37 cell count
         nwcorner = Point(30, 0)
         secorner = Point(60, -30)
@@ -122,6 +129,13 @@ class RMGTest(unittest.TestCase):
         tile = RMGTile(nwcorner, secorner, cells_per_degree)
         cellcount = tile.cellcount()
         self.assertEqual(cellcount, 592726068)
+        #Cell count within Worldclim bounds at 120 cells per degree
+        nwcorner = Point(-180, 90)
+        secorner = Point(180, -60)
+        cells_per_degree = 120
+        tile = RMGTile(nwcorner, secorner, cells_per_degree)
+        cellcount = tile.cellcount()
+        self.assertEqual(cellcount, 552731769)
         #Global cell count 1 cells per degree
         nwcorner = Point(-180, 90)
         secorner = Point(180, -90)
