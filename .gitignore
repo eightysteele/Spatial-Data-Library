@@ -2,6 +2,9 @@
 ##################
 production.ini
 
+# Sphinx
+_build
+
 # Compiled source #
 ###################
 *.pyc
