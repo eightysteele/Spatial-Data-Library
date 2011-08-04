@@ -1,0 +1,1 @@
+tmg2shp.py -n 0 -s -30 -w 30 -e 60 -r 0.008333333333333333 -t 25000 -f ~/SDL/shapefiles/worldclim/tiles/1k/37/ -g 3,7

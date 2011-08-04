@@ -31,9 +31,6 @@
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
-        <li class="right" >
-          <a href="py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
         <li><a href="#">Spatial Data Library v1.0.0 documentation</a> &raquo;</li> 
       </ul>
     </div>  
@@ -50,74 +47,6 @@
 <ul class="simple">
 </ul>
 </div>
-<span class="target" id="module-bulkloader"></span><dl class="class">
-<dt id="bulkloader.Tile">
-<em class="property">class </em><tt class="descclassname">bulkloader.</tt><tt class="descname">Tile</tt><big>(</big><em>row</em>, <em>col</em>, <em>filename=None</em><big>)</big><a class="headerlink" href="#bulkloader.Tile" title="Permalink to this definition">¶</a></dt>
-<dd><p>A 30 arc-second geographic tile (<a class="reference external" href="http://www.worldclim.org/tiles.php">http://www.worldclim.org/tiles.php</a>).</p>
-<dl class="method">
-<dt id="bulkloader.Tile.bulkload2couchdb">
-<tt class="descname">bulkload2couchdb</tt><big>(</big><em>options</em><big>)</big><a class="headerlink" href="#bulkloader.Tile.bulkload2couchdb" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bulkloads the tile to CouchDB using command line options.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="bulkloader.Tile.clip">
-<tt class="descname">clip</tt><big>(</big><em>shapefile</em>, <em>workspace</em><big>)</big><a class="headerlink" href="#bulkloader.Tile.clip" title="Permalink to this definition">¶</a></dt>
-<dd><p>Clips shapefile against tile and returns clipped Tile object.</p>
-</dd></dl>
-
-<dl class="classmethod">
-<dt id="bulkloader.Tile.clip2cell">
-<em class="property">classmethod </em><tt class="descname">clip2cell</tt><big>(</big><em>src</em>, <em>shapefile</em><big>)</big><a class="headerlink" href="#bulkloader.Tile.clip2cell" title="Permalink to this definition">¶</a></dt>
-<dd><p>Clips src by shapefile and returns clipped shapefile name.</p>
-</dd></dl>
-
-<dl class="classmethod">
-<dt id="bulkloader.Tile.fromshapefile">
-<em class="property">classmethod </em><tt class="descname">fromshapefile</tt><big>(</big><em>filename</em><big>)</big><a class="headerlink" href="#bulkloader.Tile.fromshapefile" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="bulkloader.Tile.getcells">
-<tt class="descname">getcells</tt><big>(</big><em>cellres</em><big>)</big><a class="headerlink" href="#bulkloader.Tile.getcells" title="Permalink to this definition">¶</a></dt>
-<dd><p>Iterates over all cells in the tile at the given cellres.</p>
-<dl class="docutils">
-<dt>Arguments:</dt>
-<dd>cellres - The cell resolution.</dd>
-</dl>
-</dd></dl>
-
-<dl class="classmethod">
-<dt id="bulkloader.Tile.intersect">
-<em class="property">classmethod </em><tt class="descname">intersect</tt><big>(</big><em>shapefile</em>, <em>options</em><big>)</big><a class="headerlink" href="#bulkloader.Tile.intersect" title="Permalink to this definition">¶</a></dt>
-<dd><p>Intesects features in a shapefile with variables via starspan.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="bulkloader.Tile.writemultishapefiles">
-<tt class="descname">writemultishapefiles</tt><big>(</big><big>)</big><a class="headerlink" href="#bulkloader.Tile.writemultishapefiles" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="bulkloader.Tile.writeshapefile">
-<tt class="descname">writeshapefile</tt><big>(</big><em>workspace</em><big>)</big><a class="headerlink" href="#bulkloader.Tile.writeshapefile" title="Permalink to this definition">¶</a></dt>
-<dd><p>Writes tile shapefile in workspace directory and returns filename.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="bulkloader.Variable">
-<em class="property">class </em><tt class="descclassname">bulkloader.</tt><tt class="descname">Variable</tt><big>(</big><em>bilfile</em>, <em>hdrfile</em><big>)</big><a class="headerlink" href="#bulkloader.Variable" title="Permalink to this definition">¶</a></dt>
-<dd><p>An environmental variable backed by a .bil and a .hdr file.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="bulkloader.TileCell">
-<em class="property">class </em><tt class="descclassname">bulkloader.</tt><tt class="descname">TileCell</tt><big>(</big><em>resolution</em>, <em>key</em>, <em>polygon</em><big>)</big><a class="headerlink" href="#bulkloader.TileCell" title="Permalink to this definition">¶</a></dt>
-<dd><p>A tile cell described by a polygon with geographic coordinates.</p>
-</dd></dl>
-
 </div>
 <div class="section" id="indices-and-tables">
 <h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
@@ -170,9 +99,6 @@
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              >index</a></li>
-        <li class="right" >
-          <a href="py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
         <li><a href="#">Spatial Data Library v1.0.0 documentation</a> &raquo;</li> 
       </ul>
     </div>
