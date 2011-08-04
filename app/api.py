@@ -16,24 +16,27 @@
 
 __author__ = "Aaron Steele, Dave Vieglais, and John Wieczorek"
 
+"""This module contains some shit."""
+
+# Standard Python imports:
 from datetime import datetime
+import logging
+import os
+import simplejson
+
+# Google App Engine imports:
 from google.appengine.api import mail, memcache, urlfetch
 from google.appengine.ext import webapp, db
 from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
 
+# SDL imports:
 from sdl import rmg
 
-import logging
-import os
-import simplejson
-
-#from google.appengine.dist import use_library
-#use_library('django', '1.2')
-
+# CouchDb connection parameters:
 COUCHDB_HOST = 'http://eighty.berkeley.edu'
 COUCHDB_PORT = 5984
-COUCHDB_DATABASE = 'worldclim-rmg'
+COUCHDB_DATABASE = 'sdl-dev' #'worldclim-rmg'
 COUCHDB_DESIGN = 'api'
 COUCHDB_VIEW = 'cells'
 COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % \
@@ -95,15 +98,14 @@ class CellValuesHandler(webapp.RequestHandler):
 
     @classmethod
     def fromcouchdb(cls, cell_keys):
-        """Returns CouchDBCell entities from a CouchDB query on cell keys.
+        """Returns a list of CouchDBCell entities from a CouchDB query on cell keys.
         
         Arguments:
             cell_keys - A set of cell key strings (e.g., 9-15).
 
         Returns:
-            A dictionary of cell key to CouchDBCell.
+            A dictionary of cell key to CouchDBCell instance.
         """
-        logging.info(COUCHDB_URL)
         response = urlfetch.fetch(
             url=COUCHDB_URL,
             payload=simplejson.dumps({'keys': list(cell_keys)}),
@@ -134,41 +136,43 @@ class CellValuesHandler(webapp.RequestHandler):
         """
         cells = {}
         
-        # Checks cache:
-        cached = memcache.get_multi(cell_keys)
+        # Get cached cells
+        cached = memcache.get_multi(cell_keys)        
         cells.update(cached)
+        
+        # Calculate any uncached cell keys
         cell_keys = cell_keys.difference(cached.keys())
 
         cachecells = False
 
-        # Checks datastore:
+        # Check datastore for any uncached cell keys
         if len(cell_keys) > 0:
             cachecells = True
             stored = cls.fromds(cell_keys)
             cells.update(stored)
+            # Calculate any cell keys not in datastore
             cell_keys = cell_keys.difference(stored.keys())
             
-        # Checks CouchDB:
+        # Check CouchDB for any cells not in datastore
         if len(cell_keys) > 0:
             cachecells = True
             couched = cls.fromcouchdb(cell_keys)
             cells.update(couched)
+
+            # Put cells from CouchDB into datastore
             db.put(couched.values())
             
+        # Cache cells
         if cachecells:
             memcache.set_multi(cells)                        
 
         return cells
 
-    @classmethod
-    def getcellsbycoords(cls, coords):
-        """Gets CouchDBCell entities corresponding to a set of lon, lat coordinates.
+    def cell_keys_from_coords(self, coords):
+        """Returns a list of cell keys generated from a list of coords.
 
         Arguments:
-            coords - A set of lon, lat coordinate pair strings (e.g., -121.3,34.7).
-
-        Returns:
-            A dictionary of cell key to CouchDBCell.
+            coords - list of lon,lat pairs
         """
         cell_keys = set()
         for coord in coords:
@@ -183,86 +187,77 @@ class CellValuesHandler(webapp.RequestHandler):
         return cell_keys
 
     def get(self):
+        """Handles a cell API request by proxing to post."""
         return self.post()
-    
-    def getcellkeys(self, coords, resolution):
-        """Returns a rectangular cell index in the form x-y
-        where x is the number of cells west of lng to lng = -180 and
-        y is the number of cells north of lat to lat = 90."""
-        keys = set()
-        for xy in coords:
-            x,y = xy.split(',')            
-            dlat = 90 - float(y)
-            dlng = float(x) + 180
-            x = int(dlng/resolution)
-            y = int(dlat/resolution)
-            keys.add('%s-%s' % (x, y))
-        logging.info('RETURNING KEYS: ' + str(keys))
-        return keys
 
     def post(self):
-        xy = self.request.get('xy', None) # lon,lat|lon,lat|...
-        k = self.request.get('k', None)  # cellkey,cellkey,...
-        v = self.request.get('v', None) # varname,varname,...
-        c = 'true' == self.request.get('c')
+        """Handles a cell API request.
 
-        logging.info('hi')
+        URL parameters:
+            xy - coordinates (lon,lat|lon,lat|...)
+            k - cell keys (cellkey,cellkey,...)
+            v - variable names (varname,varname,...)
+            c - return cell coordinates if true
+        """
+        xy = self.request.get('xy', None) 
+        k = self.request.get('k', None)  
+        v = self.request.get('v', None) 
+        c = 'true' == self.request.get('c') 
+
+        # Invalid request
         if not k and not xy:
-            logging.error('No cell keys for k=%s, xy=%s' % (k, xy))
             self.error(404)
             return
         
-        if k:
+        # Get cell key unqiues
+        if k: 
             cell_keys = set([x.strip() for x in k.split(',')])
-        else:
-            cell_keys = self.getcellkeys([x.strip() for x in xy.split('|')], .0083)
+        else: 
+            cell_keys = self.cell_keys_from_coords([x.strip() for x in xy.split('|')])
 
+        # Invalid request
         if not cell_keys:
             logging.error('No cell keys for k=%s, xy=%s' % (k, xy))
             self.error(404)
             return
-
+        
+        # Get variable names
         if v:
             variable_names = set([x.strip() for x in v.split(',')])
         else:
             variable_names = []
         
+        # Get cells by key
         cells = CellValuesHandler.getcells(cell_keys)        
-        results = []
-        if xy:
-            coords = set([x.strip() for x in xy.split('|')])
-            if not coords:
-                self.error(404)
-                return
-            logging.info('coords: %s' % str(coords))
 
-            cell_keys = CellValuesHandler.getcellsbycoords(coords)
-            if not cell_keys:
-                self.error(404)
-                return
-            cells = CellValuesHandler.getcells(cell_keys)
-        elif k:
-            cell_keys = set([x.strip() for x in k.split(',')])
-            if not cell_keys:
-                self.error(404)
-                return
-            cells = CellValuesHandler.getcells(cell_keys)
-                    
-        for cellkey in cells.keys():
-            cell = cells.get(cellkey)
+        # Prepare results
+        results = []                    
+        for cellkey, cell in cells.iteritems():
             varvals = simplejson.loads(cell.varvals)
             requested_varvals = {}
-            varvals = simplejson.loads(cell.varvals)
+
+            # Prepare only requested variables
             if len(variable_names) > 0:
                 for name in variable_names:
+                    var = varvals.get(name)
+                    if not var: # Ignore invalid variable names
+                        continue
                     requested_varvals[name] = varvals.get(name)
-            else:
+            else: # Send back all variables
                 requested_varvals = varvals
-            result = {'cell-key': cellkey, 
-                      'cell-values': requested_varvals}
+            
+            result = dict(
+                cell_key=cellkey, 
+                cell_values=requested_varvals)
+            
+            # Send back cell coordinates
             if c:
-                result['cell-coords'] = simplejson.loads(cell.coords)
+                result['cell_coords'] = simplejson.loads(cell.coords)
+                
+            # Add result
             results.append(result)
+            
+        # Return all results as JSON
         json = simplejson.dumps(results)
         self.response.headers["Content-Type"] = "application/json"
         self.response.out.write(json)
