@@ -46,6 +46,77 @@ COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % \
      COUCHDB_DESIGN, 
      COUCHDB_VIEW)
 
+# SI conversion functions for variable values
+SI_CONVERSIONS = dict(
+    alt=lambda x: int(x),
+    bio1=lambda x: int(x)/10.0,
+    bio2=lambda x: int(x)/10.0,
+    bio3=lambda x: int(x)/100.0,
+    bio4=lambda x: int(x)/100.0,
+    bio5=lambda x: int(x)/10.0,
+    bio6=lambda x: int(x)/10.0,
+    bio7=lambda x: int(x)/10.0,
+    bio8=lambda x: int(x)/10.0,
+    bio9=lambda x: int(x)/10.0,
+    bio10=lambda x: int(x)/10.0,
+    bio11=lambda x: int(x)/10.0,
+    bio12=lambda x: int(x),
+    bio13=lambda x: int(x),
+    bio14=lambda x: int(x),
+    bio15=lambda x: int(x),
+    bio16=lambda x: int(x),
+    bio17=lambda x: int(x),
+    bio18=lambda x: int(x),
+    bio19=lambda x: int(x),
+    prec1=lambda x: int(x),
+    prec10=lambda x: int(x),
+    prec11=lambda x: int(x),
+    prec12=lambda x: int(x),
+    prec2=lambda x: int(x),
+    prec3=lambda x: int(x),
+    prec4=lambda x: int(x),
+    prec5=lambda x: int(x),
+    prec6=lambda x: int(x),
+    prec7=lambda x: int(x),
+    prec8=lambda x: int(x),
+    prec9=lambda x: int(x),
+    tmax1=lambda x: int(x)/10.0,
+    tmax10=lambda x: int(x)/10.0,
+    tmax11=lambda x: int(x)/10.0,
+    tmax12=lambda x: int(x)/10.0,
+    tmax2=lambda x: int(x)/10.0,
+    tmax3=lambda x: int(x)/10.0,
+    tmax4=lambda x: int(x)/10.0,
+    tmax5=lambda x: int(x)/10.0,
+    tmax6=lambda x: int(x)/10.0,
+    tmax7=lambda x: int(x)/10.0,
+    tmax8=lambda x: int(x)/10.0,
+    tmax9=lambda x: int(x)/10.0,
+    tmean1=lambda x: int(x)/10.0,
+    tmean10=lambda x: int(x)/10.0,
+    tmean11=lambda x: int(x)/10.0,
+    tmean12=lambda x: int(x)/10.0,
+    tmean2=lambda x: int(x)/10.0,
+    tmean3=lambda x: int(x)/10.0,
+    tmean4=lambda x: int(x)/10.0,
+    tmean5=lambda x: int(x)/10.0,
+    tmean6=lambda x: int(x)/10.0,
+    tmean7=lambda x: int(x)/10.0,
+    tmean8=lambda x: int(x)/10.0,
+    tmean9=lambda x: int(x)/10.0,
+    tmin1=lambda x: int(x)/10.0,
+    tmin10=lambda x: int(x)/10.0,
+    tmin11=lambda x: int(x)/10.0,
+    tmin12=lambda x: int(x)/10.0,
+    tmin2=lambda x: int(x)/10.0,
+    tmin3=lambda x: int(x)/10.0,
+    tmin4=lambda x: int(x)/10.0,
+    tmin5=lambda x: int(x)/10.0,
+    tmin6=lambda x: int(x)/10.0,
+    tmin7=lambda x: int(x)/10.0,
+    tmin8=lambda x: int(x)/10.0,
+    tmin9=lambda x: int(x)/10.0)
+
 class CouchDbCell(db.Model):
     """Models a CouchDB cell document.
 
@@ -75,6 +146,7 @@ class CouchDbCell(db.Model):
 class Variable(db.Expando):
     """Variable metadata."""
     name = db.StringProperty()
+
 
 class CellValuesHandler(webapp.RequestHandler):
     """Handler for cell value requests."""
@@ -198,11 +270,13 @@ class CellValuesHandler(webapp.RequestHandler):
             k - cell keys (cellkey,cellkey,...)
             v - variable names (varname,varname,...)
             c - return cell coordinates if true
+            si - return converted variable values to standard SI units if true
         """
         xy = self.request.get('xy', None) 
         k = self.request.get('k', None)  
         v = self.request.get('v', None) 
         c = 'true' == self.request.get('c') 
+        si = 'true' == self.request.get('si')
 
         # Invalid request
         if not k and not xy:
@@ -243,15 +317,25 @@ class CellValuesHandler(webapp.RequestHandler):
                     var = varvals.get(name)
                     if not var: # Ignore invalid variable names
                         continue
-                    requested_varvals[name] = varvals.get(name)
+                    val = None
+                    if si:
+                        val = apply(SI_CONVERSIONS.get(name), [var])
+                    else:
+                        val = int(var)
+                    requested_varvals[name] = val
             else: # Send back all variables
-                requested_varvals = varvals
+                if si:
+                    requested_varvals = dict(
+                        (k, apply(SI_CONVERSIONS.get(k), [v])) for k,v in varvals.iteritems())
+                else:
+                    requested_varvals = dict((k, int(v)) for k,v in varvals.iteritems())
             
+            # Package result as a dictionary
             result = dict(
                 cell_key=cellkey, 
                 cell_values=requested_varvals)
             
-            # Send back cell coordinates
+            # Include cell coordinates
             if c:
                 result['cell_coords'] = simplejson.loads(cell.coords)
                 
