@@ -4,6 +4,7 @@ production.ini
 
 # Sphinx
 _build
+_static
 
 # Compiled source #
 ###################
