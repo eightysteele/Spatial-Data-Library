@@ -15,11 +15,20 @@
 # limitations under the License.
 #
 
+
+
+
 """Models to be used when accessing app specific datastore usage statistics.
 
 These entities cannot be created by users, but are populated in the
 application's datastore by offline processes run by the Google App Engine team.
 """
+
+
+
+
+
+
 
 
 
@@ -35,11 +44,15 @@ class BaseStatistic(db.Model):
   total number of occurrences of the statistic in the datastore.  The
   'timestamp' is when the statistic instance was written to the datastore.
   """
+
   STORED_KIND_NAME = '__BaseStatistic__'
+
 
   bytes = db.IntegerProperty()
 
+
   count = db.IntegerProperty()
+
 
   timestamp = db.DateTimeProperty()
 
@@ -55,7 +68,9 @@ class BaseKindStatistic(BaseStatistic):
   The 'kind_name' attribute represents the name of the kind associated with the
   statistic instance.
   """
+
   STORED_KIND_NAME = '__BaseKindStatistic__'
+
 
   kind_name = db.StringProperty()
 
@@ -67,6 +82,20 @@ class GlobalStat(BaseStatistic):
   total number of entities stored and the total number of bytes they take up.
   """
   STORED_KIND_NAME = '__Stat_Total__'
+
+
+class NamespaceStat(BaseStatistic):
+  """An aggregate of all entities across an entire namespace.
+
+  This statistic has one instance per namespace.  The key_name is the
+  represented namespace. NamespaceStat entities will only be found
+  in the namespace "" (empty string). It contains the total
+  number of entities stored and the total number of bytes they take up.
+  """
+  STORED_KIND_NAME = '__Stat_Namespace__'
+
+
+  subject_namespace = db.StringProperty()
 
 
 class KindStat(BaseKindStatistic):
@@ -107,6 +136,7 @@ class PropertyTypeStat(BaseStatistic):
   """
   STORED_KIND_NAME = '__Stat_PropertyType__'
 
+
   property_type = db.StringProperty()
 
 
@@ -117,6 +147,7 @@ class KindPropertyTypeStat(BaseKindStatistic):
   (kind, property_type) tuple in the application's datastore.
   """
   STORED_KIND_NAME = '__Stat_PropertyType_Kind__'
+
 
   property_type = db.StringProperty()
 
@@ -129,6 +160,7 @@ class KindPropertyNameStat(BaseKindStatistic):
   """
   STORED_KIND_NAME = '__Stat_PropertyName_Kind__'
 
+
   property_name = db.StringProperty()
 
 
@@ -140,6 +172,115 @@ class KindPropertyNamePropertyTypeStat(BaseKindStatistic):
   """
   STORED_KIND_NAME = '__Stat_PropertyType_PropertyName_Kind__'
 
+
   property_type = db.StringProperty()
 
+
   property_name = db.StringProperty()
+
+
+
+
+
+
+
+
+class NamespaceGlobalStat(GlobalStat):
+  """GlobalStat equivalent for a specific namespace.
+
+  These may be found in each specific namespace and represent stats for
+  that particular namespace.
+  """
+  STORED_KIND_NAME = '__Stat_Ns_Total__'
+
+
+class NamespaceKindStat(KindStat):
+  """KindStat equivalent for a specific namespace.
+
+  These may be found in each specific namespace and represent stats for
+  that particular namespace.
+  """
+  STORED_KIND_NAME = '__Stat_Ns_Kind__'
+
+
+class NamespaceKindRootEntityStat(KindRootEntityStat):
+  """KindRootEntityStat equivalent for a specific namespace.
+
+  These may be found in each specific namespace and represent stats for
+  that particular namespace.
+  """
+  STORED_KIND_NAME = '__Stat_Ns_Kind_IsRootEntity__'
+
+
+class NamespaceKindNonRootEntityStat(KindNonRootEntityStat):
+  """KindNonRootEntityStat equivalent for a specific namespace.
+
+  These may be found in each specific namespace and represent stats for
+  that particular namespace.
+  """
+  STORED_KIND_NAME = '__Stat_Ns_Kind_NotRootEntity__'
+
+
+class NamespacePropertyTypeStat(PropertyTypeStat):
+  """PropertyTypeStat equivalent for a specific namespace.
+
+  These may be found in each specific namespace and represent stats for
+  that particular namespace.
+  """
+  STORED_KIND_NAME = '__Stat_Ns_PropertyType__'
+
+
+class NamespaceKindPropertyTypeStat(KindPropertyTypeStat):
+  """KindPropertyTypeStat equivalent for a specific namespace.
+
+  These may be found in each specific namespace and represent stats for
+  that particular namespace.
+  """
+  STORED_KIND_NAME = '__Stat_Ns_PropertyType_Kind__'
+
+
+class NamespaceKindPropertyNameStat(KindPropertyNameStat):
+  """KindPropertyNameStat equivalent for a specific namespace.
+
+  These may be found in each specific namespace and represent stats for
+  that particular namespace.
+  """
+  STORED_KIND_NAME = '__Stat_Ns_PropertyName_Kind__'
+
+
+class NamespaceKindPropertyNamePropertyTypeStat(
+    KindPropertyNamePropertyTypeStat):
+  """KindPropertyNamePropertyTypeStat equivalent for a specific namespace.
+
+  These may be found in each specific namespace and represent stats for
+  that particular namespace.
+  """
+  STORED_KIND_NAME = '__Stat_Ns_PropertyType_PropertyName_Kind__'
+
+
+
+
+_DATASTORE_STATS_CLASSES_BY_KIND = {
+    GlobalStat.STORED_KIND_NAME: GlobalStat,
+    NamespaceStat.STORED_KIND_NAME: NamespaceStat,
+    KindStat.STORED_KIND_NAME: KindStat,
+    KindRootEntityStat.STORED_KIND_NAME: KindRootEntityStat,
+    KindNonRootEntityStat.STORED_KIND_NAME: KindNonRootEntityStat,
+    PropertyTypeStat.STORED_KIND_NAME: PropertyTypeStat,
+    KindPropertyTypeStat.STORED_KIND_NAME: KindPropertyTypeStat,
+    KindPropertyNameStat.STORED_KIND_NAME: KindPropertyNameStat,
+    KindPropertyNamePropertyTypeStat.STORED_KIND_NAME:
+        KindPropertyNamePropertyTypeStat,
+    NamespaceGlobalStat.STORED_KIND_NAME: NamespaceGlobalStat,
+    NamespaceKindStat.STORED_KIND_NAME: NamespaceKindStat,
+    NamespaceKindRootEntityStat.STORED_KIND_NAME: NamespaceKindRootEntityStat,
+    NamespaceKindNonRootEntityStat.STORED_KIND_NAME:
+        NamespaceKindNonRootEntityStat,
+    NamespacePropertyTypeStat.STORED_KIND_NAME: NamespacePropertyTypeStat,
+    NamespaceKindPropertyTypeStat.STORED_KIND_NAME:
+        NamespaceKindPropertyTypeStat,
+    NamespaceKindPropertyNameStat.STORED_KIND_NAME:
+        NamespaceKindPropertyNameStat,
+    NamespaceKindPropertyNamePropertyTypeStat.STORED_KIND_NAME:
+        NamespaceKindPropertyNamePropertyTypeStat}
+

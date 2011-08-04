@@ -15,7 +15,14 @@
 # limitations under the License.
 #
 
+
+
+
 """Stub version of the XMPP API, writes messages to logs."""
+
+
+
+
 
 
 
@@ -25,6 +32,7 @@ import logging
 import os
 
 from google.appengine.api import apiproxy_stub
+from google.appengine.api import app_identity
 from google.appengine.api import xmpp
 from google.appengine.api.xmpp import xmpp_service_pb
 
@@ -100,6 +108,25 @@ class XmppServiceStub(apiproxy_stub.APIProxyStub):
     self.log('       ' + from_jid)
     self.log('    To: ' + request.jid())
 
+  def _Dynamic_SendPresence(self, request, response):
+    """Implementation of XmppService::SendPresence.
+
+    Args:
+      request: An XmppSendPresenceRequest.
+      response: An XmppSendPresenceResponse .
+    """
+    from_jid = self._GetFrom(request.from_jid())
+    self.log('Sending an XMPP Presence:')
+    self.log('    From:')
+    self.log('       ' + from_jid)
+    self.log('    To: ' + request.jid())
+    if request.type():
+      self.log('    Type: ' + request.type())
+    if request.show():
+      self.log('    Show: ' + request.show())
+    if request.status():
+      self.log('    Status: ' + request.status())
+
   def _GetFrom(self, requested):
     """Validates that the from JID is valid.
 
@@ -113,9 +140,10 @@ class XmppServiceStub(apiproxy_stub.APIProxyStub):
       xmpp.InvalidJidError if the requested JID is invalid.
     """
 
-    appid = os.environ.get('APPLICATION_ID', '')
+    appid = app_identity.get_application_id()
     if requested == None or requested == '':
       return appid + '@appspot.com/bot'
+
 
     node, domain, resource = ('', '', '')
     at = requested.find('@')

@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+
+
 from google.net.proto import ProtocolBuffer
 import array
 import dummy_thread as thread
@@ -26,11 +28,13 @@ from google.appengine.api.api_base_pb import *
 import google.appengine.api.api_base_pb
 class MailServiceError(ProtocolBuffer.ProtocolMessage):
 
+
   OK           =    0
   INTERNAL_ERROR =    1
   BAD_REQUEST  =    2
   UNAUTHORIZED_SENDER =    3
   INVALID_ATTACHMENT_TYPE =    4
+  INVALID_HEADER_NAME =    5
 
   _ErrorCode_NAMES = {
     0: "OK",
@@ -38,6 +42,7 @@ class MailServiceError(ProtocolBuffer.ProtocolMessage):
     2: "BAD_REQUEST",
     3: "UNAUTHORIZED_SENDER",
     4: "INVALID_ATTACHMENT_TYPE",
+    5: "INVALID_HEADER_NAME",
   }
 
   def ErrorCode_Name(cls, x): return cls._ErrorCode_NAMES.get(x, "")
@@ -62,7 +67,11 @@ class MailServiceError(ProtocolBuffer.ProtocolMessage):
 
   def ByteSize(self):
     n = 0
-    return n + 0
+    return n
+
+  def ByteSizePartial(self):
+    n = 0
+    return n
 
   def Clear(self):
     pass
@@ -70,9 +79,14 @@ class MailServiceError(ProtocolBuffer.ProtocolMessage):
   def OutputUnchecked(self, out):
     pass
 
+  def OutputPartial(self, out):
+    pass
+
   def TryMerge(self, d):
     while d.avail() > 0:
       tt = d.getVarInt32()
+
+
       if (tt == 0): raise ProtocolBuffer.ProtocolBufferDecodeError
       d.skipData(tt)
 
@@ -93,6 +107,7 @@ class MailServiceError(ProtocolBuffer.ProtocolMessage):
   _TYPES = _BuildTagLookupTable({
     0: ProtocolBuffer.Encoder.NUMERIC,
   }, 0, ProtocolBuffer.Encoder.MAX_TYPE)
+
 
   _STYLE = """"""
   _STYLE_CONTENT_TYPE = """"""
@@ -163,6 +178,16 @@ class MailAttachment(ProtocolBuffer.ProtocolMessage):
     n += self.lengthString(len(self.data_))
     return n + 2
 
+  def ByteSizePartial(self):
+    n = 0
+    if (self.has_filename_):
+      n += 1
+      n += self.lengthString(len(self.filename_))
+    if (self.has_data_):
+      n += 1
+      n += self.lengthString(len(self.data_))
+    return n
+
   def Clear(self):
     self.clear_filename()
     self.clear_data()
@@ -173,6 +198,14 @@ class MailAttachment(ProtocolBuffer.ProtocolMessage):
     out.putVarInt32(18)
     out.putPrefixedString(self.data_)
 
+  def OutputPartial(self, out):
+    if (self.has_filename_):
+      out.putVarInt32(10)
+      out.putPrefixedString(self.filename_)
+    if (self.has_data_):
+      out.putVarInt32(18)
+      out.putPrefixedString(self.data_)
+
   def TryMerge(self, d):
     while d.avail() > 0:
       tt = d.getVarInt32()
@@ -182,6 +215,8 @@ class MailAttachment(ProtocolBuffer.ProtocolMessage):
       if tt == 18:
         self.set_data(d.getPrefixedString())
         continue
+
+
       if (tt == 0): raise ProtocolBuffer.ProtocolBufferDecodeError
       d.skipData(tt)
 
@@ -211,6 +246,145 @@ class MailAttachment(ProtocolBuffer.ProtocolMessage):
     2: ProtocolBuffer.Encoder.STRING,
   }, 2, ProtocolBuffer.Encoder.MAX_TYPE)
 
+
+  _STYLE = """"""
+  _STYLE_CONTENT_TYPE = """"""
+class MailHeader(ProtocolBuffer.ProtocolMessage):
+  has_name_ = 0
+  name_ = ""
+  has_value_ = 0
+  value_ = ""
+
+  def __init__(self, contents=None):
+    if contents is not None: self.MergeFromString(contents)
+
+  def name(self): return self.name_
+
+  def set_name(self, x):
+    self.has_name_ = 1
+    self.name_ = x
+
+  def clear_name(self):
+    if self.has_name_:
+      self.has_name_ = 0
+      self.name_ = ""
+
+  def has_name(self): return self.has_name_
+
+  def value(self): return self.value_
+
+  def set_value(self, x):
+    self.has_value_ = 1
+    self.value_ = x
+
+  def clear_value(self):
+    if self.has_value_:
+      self.has_value_ = 0
+      self.value_ = ""
+
+  def has_value(self): return self.has_value_
+
+
+  def MergeFrom(self, x):
+    assert x is not self
+    if (x.has_name()): self.set_name(x.name())
+    if (x.has_value()): self.set_value(x.value())
+
+  def Equals(self, x):
+    if x is self: return 1
+    if self.has_name_ != x.has_name_: return 0
+    if self.has_name_ and self.name_ != x.name_: return 0
+    if self.has_value_ != x.has_value_: return 0
+    if self.has_value_ and self.value_ != x.value_: return 0
+    return 1
+
+  def IsInitialized(self, debug_strs=None):
+    initialized = 1
+    if (not self.has_name_):
+      initialized = 0
+      if debug_strs is not None:
+        debug_strs.append('Required field: name not set.')
+    if (not self.has_value_):
+      initialized = 0
+      if debug_strs is not None:
+        debug_strs.append('Required field: value not set.')
+    return initialized
+
+  def ByteSize(self):
+    n = 0
+    n += self.lengthString(len(self.name_))
+    n += self.lengthString(len(self.value_))
+    return n + 2
+
+  def ByteSizePartial(self):
+    n = 0
+    if (self.has_name_):
+      n += 1
+      n += self.lengthString(len(self.name_))
+    if (self.has_value_):
+      n += 1
+      n += self.lengthString(len(self.value_))
+    return n
+
+  def Clear(self):
+    self.clear_name()
+    self.clear_value()
+
+  def OutputUnchecked(self, out):
+    out.putVarInt32(10)
+    out.putPrefixedString(self.name_)
+    out.putVarInt32(18)
+    out.putPrefixedString(self.value_)
+
+  def OutputPartial(self, out):
+    if (self.has_name_):
+      out.putVarInt32(10)
+      out.putPrefixedString(self.name_)
+    if (self.has_value_):
+      out.putVarInt32(18)
+      out.putPrefixedString(self.value_)
+
+  def TryMerge(self, d):
+    while d.avail() > 0:
+      tt = d.getVarInt32()
+      if tt == 10:
+        self.set_name(d.getPrefixedString())
+        continue
+      if tt == 18:
+        self.set_value(d.getPrefixedString())
+        continue
+
+
+      if (tt == 0): raise ProtocolBuffer.ProtocolBufferDecodeError
+      d.skipData(tt)
+
+
+  def __str__(self, prefix="", printElemNumber=0):
+    res=""
+    if self.has_name_: res+=prefix+("name: %s\n" % self.DebugFormatString(self.name_))
+    if self.has_value_: res+=prefix+("value: %s\n" % self.DebugFormatString(self.value_))
+    return res
+
+
+  def _BuildTagLookupTable(sparse, maxtag, default=None):
+    return tuple([sparse.get(i, default) for i in xrange(0, 1+maxtag)])
+
+  kname = 1
+  kvalue = 2
+
+  _TEXT = _BuildTagLookupTable({
+    0: "ErrorCode",
+    1: "name",
+    2: "value",
+  }, 2)
+
+  _TYPES = _BuildTagLookupTable({
+    0: ProtocolBuffer.Encoder.NUMERIC,
+    1: ProtocolBuffer.Encoder.STRING,
+    2: ProtocolBuffer.Encoder.STRING,
+  }, 2, ProtocolBuffer.Encoder.MAX_TYPE)
+
+
   _STYLE = """"""
   _STYLE_CONTENT_TYPE = """"""
 class MailMessage(ProtocolBuffer.ProtocolMessage):
@@ -230,6 +404,7 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
     self.cc_ = []
     self.bcc_ = []
     self.attachment_ = []
+    self.header_ = []
     if contents is not None: self.MergeFromString(contents)
 
   def sender(self): return self.sender_
@@ -358,6 +533,22 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
 
   def clear_attachment(self):
     self.attachment_ = []
+  def header_size(self): return len(self.header_)
+  def header_list(self): return self.header_
+
+  def header(self, i):
+    return self.header_[i]
+
+  def mutable_header(self, i):
+    return self.header_[i]
+
+  def add_header(self):
+    x = MailHeader()
+    self.header_.append(x)
+    return x
+
+  def clear_header(self):
+    self.header_ = []
 
   def MergeFrom(self, x):
     assert x is not self
@@ -370,6 +561,7 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
     if (x.has_textbody()): self.set_textbody(x.textbody())
     if (x.has_htmlbody()): self.set_htmlbody(x.htmlbody())
     for i in xrange(x.attachment_size()): self.add_attachment().CopyFrom(x.attachment(i))
+    for i in xrange(x.header_size()): self.add_header().CopyFrom(x.header(i))
 
   def Equals(self, x):
     if x is self: return 1
@@ -395,6 +587,9 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
     if len(self.attachment_) != len(x.attachment_): return 0
     for e1, e2 in zip(self.attachment_, x.attachment_):
       if e1 != e2: return 0
+    if len(self.header_) != len(x.header_): return 0
+    for e1, e2 in zip(self.header_, x.header_):
+      if e1 != e2: return 0
     return 1
 
   def IsInitialized(self, debug_strs=None):
@@ -408,6 +603,8 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
       if debug_strs is not None:
         debug_strs.append('Required field: subject not set.')
     for p in self.attachment_:
+      if not p.IsInitialized(debug_strs): initialized=0
+    for p in self.header_:
       if not p.IsInitialized(debug_strs): initialized=0
     return initialized
 
@@ -426,7 +623,32 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
     if (self.has_htmlbody_): n += 1 + self.lengthString(len(self.htmlbody_))
     n += 1 * len(self.attachment_)
     for i in xrange(len(self.attachment_)): n += self.lengthString(self.attachment_[i].ByteSize())
+    n += 1 * len(self.header_)
+    for i in xrange(len(self.header_)): n += self.lengthString(self.header_[i].ByteSize())
     return n + 2
+
+  def ByteSizePartial(self):
+    n = 0
+    if (self.has_sender_):
+      n += 1
+      n += self.lengthString(len(self.sender_))
+    if (self.has_replyto_): n += 1 + self.lengthString(len(self.replyto_))
+    n += 1 * len(self.to_)
+    for i in xrange(len(self.to_)): n += self.lengthString(len(self.to_[i]))
+    n += 1 * len(self.cc_)
+    for i in xrange(len(self.cc_)): n += self.lengthString(len(self.cc_[i]))
+    n += 1 * len(self.bcc_)
+    for i in xrange(len(self.bcc_)): n += self.lengthString(len(self.bcc_[i]))
+    if (self.has_subject_):
+      n += 1
+      n += self.lengthString(len(self.subject_))
+    if (self.has_textbody_): n += 1 + self.lengthString(len(self.textbody_))
+    if (self.has_htmlbody_): n += 1 + self.lengthString(len(self.htmlbody_))
+    n += 1 * len(self.attachment_)
+    for i in xrange(len(self.attachment_)): n += self.lengthString(self.attachment_[i].ByteSizePartial())
+    n += 1 * len(self.header_)
+    for i in xrange(len(self.header_)): n += self.lengthString(self.header_[i].ByteSizePartial())
+    return n
 
   def Clear(self):
     self.clear_sender()
@@ -438,6 +660,7 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
     self.clear_textbody()
     self.clear_htmlbody()
     self.clear_attachment()
+    self.clear_header()
 
   def OutputUnchecked(self, out):
     out.putVarInt32(10)
@@ -466,6 +689,44 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
       out.putVarInt32(74)
       out.putVarInt32(self.attachment_[i].ByteSize())
       self.attachment_[i].OutputUnchecked(out)
+    for i in xrange(len(self.header_)):
+      out.putVarInt32(82)
+      out.putVarInt32(self.header_[i].ByteSize())
+      self.header_[i].OutputUnchecked(out)
+
+  def OutputPartial(self, out):
+    if (self.has_sender_):
+      out.putVarInt32(10)
+      out.putPrefixedString(self.sender_)
+    if (self.has_replyto_):
+      out.putVarInt32(18)
+      out.putPrefixedString(self.replyto_)
+    for i in xrange(len(self.to_)):
+      out.putVarInt32(26)
+      out.putPrefixedString(self.to_[i])
+    for i in xrange(len(self.cc_)):
+      out.putVarInt32(34)
+      out.putPrefixedString(self.cc_[i])
+    for i in xrange(len(self.bcc_)):
+      out.putVarInt32(42)
+      out.putPrefixedString(self.bcc_[i])
+    if (self.has_subject_):
+      out.putVarInt32(50)
+      out.putPrefixedString(self.subject_)
+    if (self.has_textbody_):
+      out.putVarInt32(58)
+      out.putPrefixedString(self.textbody_)
+    if (self.has_htmlbody_):
+      out.putVarInt32(66)
+      out.putPrefixedString(self.htmlbody_)
+    for i in xrange(len(self.attachment_)):
+      out.putVarInt32(74)
+      out.putVarInt32(self.attachment_[i].ByteSizePartial())
+      self.attachment_[i].OutputPartial(out)
+    for i in xrange(len(self.header_)):
+      out.putVarInt32(82)
+      out.putVarInt32(self.header_[i].ByteSizePartial())
+      self.header_[i].OutputPartial(out)
 
   def TryMerge(self, d):
     while d.avail() > 0:
@@ -500,6 +761,14 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
         d.skip(length)
         self.add_attachment().TryMerge(tmp)
         continue
+      if tt == 82:
+        length = d.getVarInt32()
+        tmp = ProtocolBuffer.Decoder(d.buffer(), d.pos(), d.pos() + length)
+        d.skip(length)
+        self.add_header().TryMerge(tmp)
+        continue
+
+
       if (tt == 0): raise ProtocolBuffer.ProtocolBufferDecodeError
       d.skipData(tt)
 
@@ -537,6 +806,14 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
       res+=e.__str__(prefix + "  ", printElemNumber)
       res+=prefix+">\n"
       cnt+=1
+    cnt=0
+    for e in self.header_:
+      elm=""
+      if printElemNumber: elm="(%d)" % cnt
+      res+=prefix+("Header%s <\n" % elm)
+      res+=e.__str__(prefix + "  ", printElemNumber)
+      res+=prefix+">\n"
+      cnt+=1
     return res
 
 
@@ -552,6 +829,7 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
   kTextBody = 7
   kHtmlBody = 8
   kAttachment = 9
+  kHeader = 10
 
   _TEXT = _BuildTagLookupTable({
     0: "ErrorCode",
@@ -564,7 +842,8 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
     7: "TextBody",
     8: "HtmlBody",
     9: "Attachment",
-  }, 9)
+    10: "Header",
+  }, 10)
 
   _TYPES = _BuildTagLookupTable({
     0: ProtocolBuffer.Encoder.NUMERIC,
@@ -577,9 +856,11 @@ class MailMessage(ProtocolBuffer.ProtocolMessage):
     7: ProtocolBuffer.Encoder.STRING,
     8: ProtocolBuffer.Encoder.STRING,
     9: ProtocolBuffer.Encoder.STRING,
-  }, 9, ProtocolBuffer.Encoder.MAX_TYPE)
+    10: ProtocolBuffer.Encoder.STRING,
+  }, 10, ProtocolBuffer.Encoder.MAX_TYPE)
+
 
   _STYLE = """"""
   _STYLE_CONTENT_TYPE = """"""
 
-__all__ = ['MailServiceError','MailAttachment','MailMessage']
+__all__ = ['MailServiceError','MailAttachment','MailHeader','MailMessage']

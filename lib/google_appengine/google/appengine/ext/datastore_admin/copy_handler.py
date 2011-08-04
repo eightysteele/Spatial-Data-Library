@@ -15,6 +15,10 @@
 # limitations under the License.
 #
 
+
+
+
+
 """Handler for data copy operation.
 
 Generic datastore admin console transfers control to ConfirmCopyHandler
@@ -29,6 +33,7 @@ This module also contains actual mapper code for copying data over.
 
 import logging
 import urllib
+import collections
 
 from google.appengine.api import datastore
 from google.appengine.api import capabilities
@@ -87,15 +92,15 @@ class ConfirmCopyHandler(webapp.RequestHandler):
     utils.RenderToResponse(handler, 'confirm_copy.html', template_params)
 
 
+
+
 class DoCopyHandler(webapp.RequestHandler):
   """Handler to deal with requests from the admin console to copy data."""
 
   SUFFIX = 'copy.do'
 
-  COPY_HANDLER = (
-      'google.appengine.ext.datastore_admin.copy_handler.CopyEntity.map')
-  INPUT_READER = (
-      'google.appengine.ext.mapreduce.input_readers.ConsistentKeyReader')
+  COPY_HANDLER = 'google.appengine.ext.datastore_admin.copy_handler.' + 'RemoteCopyEntity.map'
+  INPUT_READER = 'google.appengine.ext.mapreduce.input_readers.' + 'ConsistentKeyReader'
   MAPREDUCE_DETAIL = utils.config.MAPREDUCE_PATH + '/detail?mapreduce_id='
 
   def get(self):
@@ -134,6 +139,8 @@ class DoCopyHandler(webapp.RequestHandler):
       parameters = [('xsrf_error', '1')]
     else:
       try:
+
+
         if extra_header:
           extra_headers = dict([extra_header.split(':', 1)])
         else:
@@ -157,6 +164,8 @@ class DoCopyHandler(webapp.RequestHandler):
             mapper_params)
 
         error = ''
+
+
       except Exception, e:
         logging.exception('Handling exception.')
         error = self._HandleException(e)
@@ -190,7 +199,8 @@ class AllocateMaxIdPool(object):
 
   def __init__(self, app_id):
     self.app_id = app_id
-    self.key_path_to_max_id = {}
+
+    self.ns_to_path_to_max_id = collections.defaultdict(dict)
 
   def allocate_max_id(self, key):
     """Record the key to allocate max id.
@@ -199,30 +209,41 @@ class AllocateMaxIdPool(object):
       key: Datastore key.
     """
     path = key.to_path()
-    if not isinstance(path[-1], (int, long)):
-      return
     if len(path) == 2:
-      max_id = path[-1]
-      path_tuple = (path[0], 1)
-      self.key_path_to_max_id[path_tuple] = max(
-          max_id, self.key_path_to_max_id.get(path_tuple, 0))
+
+
+      path_tuple = ('Foo', 1)
+      id = path[-1]
     else:
-      max_id = 0
+
+
+      path_tuple = (path[0], path[1], 'Foo', 1)
+
+
+      id = None
       for path_element in path[2:]:
         if isinstance(path_element, (int, long)):
-          max_id = max(max_id, path_element)
-      path_tuple = (path[0], path[1], 'Foo', 1)
-      self.key_path_to_max_id[path_tuple] = max(
-          max_id, self.key_path_to_max_id.get(path_tuple, 0))
+          id = max(id, path_element)
+
+    if not isinstance(id, (int, long)):
+
+      return
+
+
+    path_to_max_id = self.ns_to_path_to_max_id[key.namespace()]
+    path_to_max_id[path_tuple] = max(id, path_to_max_id.get(path_tuple, 0))
 
   def flush(self):
-    for path, maxid in self.key_path_to_max_id.items():
-      db.allocate_id_range(db.Key.from_path(_app=self.app_id, *list(path)),
-                           1, maxid)
-    self.key_path_to_max_id = {}
+    for namespace, path_to_max_id in self.ns_to_path_to_max_id.iteritems():
+      for path, max_id in path_to_max_id.iteritems():
+        datastore.AllocateIds(db.Key.from_path(namespace=namespace,
+                                               _app=self.app_id,
+                                               *list(path)),
+                              max=max_id)
+    self.ns_to_path_to_max_id = collections.defaultdict(dict)
 
 
-class AllocateMaxId(object):
+class AllocateMaxId(operation.Operation):
   """Mapper operation to allocate max id."""
 
   def __init__(self, key, app_id):
@@ -236,6 +257,8 @@ class AllocateMaxId(object):
       pool = AllocateMaxIdPool(self.app_id)
       ctx.register_pool(self.pool_id, pool)
     pool.allocate_max_id(self.key)
+
+
 
 
 def FixKeys(entity_proto, app_id):
@@ -256,9 +279,12 @@ def FixKeys(entity_proto, app_id):
       if prop_value.has_referencevalue():
         FixKey(prop_value.mutable_referencevalue())
 
+
   FixKey(entity_proto.mutable_key())
+
   FixPropertyList(entity_proto.property_list())
   FixPropertyList(entity_proto.raw_property_list())
+
 
 
 def KindPathFromKey(key):
@@ -280,6 +306,39 @@ def get_mapper_params():
 
 
 class CopyEntity(object):
+  """A class which contains a map handler to copy entities."""
+
+  def map(self, key):
+    """Copy data map handler.
+
+    Args:
+      key: Datastore entity key or entity itself to copy.
+
+    Yields:
+      A db operation to store the entity in the target app.
+      An operation which updates max used ID if necessary.
+      A counter operation incrementing the count for the entity kind.
+    """
+
+    mapper_params = get_mapper_params()
+    target_app = mapper_params['target_app']
+
+    if isinstance(key, datastore.Entity):
+
+      entity = key
+      key = entity.key()
+    else:
+      entity = datastore.Get(key)
+    entity_proto = entity._ToPb()
+    FixKeys(entity_proto, target_app)
+    target_entity = datastore.Entity._FromPb(entity_proto)
+
+    yield operation.db.Put(target_entity)
+    yield AllocateMaxId(key, target_app)
+    yield operation.counters.Increment(KindPathFromKey(key))
+
+
+class RemoteCopyEntity(CopyEntity):
   """A class which contains a map handler to copy entities remotely.
 
   The class manages the connection.
@@ -294,6 +353,7 @@ class CopyEntity(object):
       return
     params = get_mapper_params()
     if 'extra_header' in params and params['extra_header']:
+
       extra_headers = dict([params['extra_header'].split(':', 1)])
     else:
       extra_headers = {}
@@ -312,26 +372,14 @@ class CopyEntity(object):
 
     Yields:
       A db operation to store the entity in the target app.
+      An operation which updates max used ID if necessary.
       A counter operation incrementing the count for the entity kind.
     """
     if not self.remote_api_stub_initialized:
       self.setup_stub()
 
-    mapper_params = get_mapper_params()
-    target_app = mapper_params['target_app']
-
-    if isinstance(key, datastore.Entity):
-      entity = key
-      key = entity.key()
-    else:
-      entity = datastore.Get(key)
-    entity_proto = entity._ToPb()
-    FixKeys(entity_proto, target_app)
-    target_entity = datastore.Entity._FromPb(entity_proto)
-
-    yield operation.db.Put(target_entity)
-    yield AllocateMaxId(key, target_app)
-    yield operation.counters.Increment(KindPathFromKey(key))
+    for op in CopyEntity.map(self, key):
+      yield op
 
 
 def handlers_list(base_path):

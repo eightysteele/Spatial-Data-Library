@@ -15,6 +15,9 @@
 # limitations under the License.
 #
 
+
+
+
 """Exceptions raised my mail API."""
 
 
@@ -32,6 +35,9 @@ class InvalidEmailError(Error):
 
 class InvalidAttachmentTypeError(Error):
   """Invalid file type for attachments.  We don't send viruses!"""
+
+class InvalidHeaderNameError(Error):
+  """Invalid name for mail header."""
 
 class MissingRecipientsError(Error):
   """No recipients specified in message."""

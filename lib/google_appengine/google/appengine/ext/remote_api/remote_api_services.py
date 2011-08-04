@@ -15,6 +15,9 @@
 # limitations under the License.
 #
 
+
+
+
 """Service configuration for remote API.
 
 This module is shared by both the remote_api_stub and the handler.
@@ -23,10 +26,13 @@ This module is shared by both the remote_api_stub and the handler.
 import sys
 
 from google.appengine.api import api_base_pb
+from google.appengine.api.channel import channel_service_pb
 from google.appengine.api import mail_service_pb
 from google.appengine.api import urlfetch_service_pb
+from google.appengine.api import user_service_pb
 from google.appengine.api.blobstore import blobstore_service_pb
 from google.appengine.api.capabilities import capability_service_pb
+from google.appengine.api.files import file_service_pb
 from google.appengine.api.images import images_service_pb
 from google.appengine.api.memcache import memcache_service_pb
 from google.appengine.api.taskqueue import taskqueue_service_pb
@@ -48,6 +54,12 @@ SERVICE_PB_MAP = {
         'IsEnabled': (capability_service_pb.IsEnabledRequest,
                       capability_service_pb.IsEnabledResponse),
     },
+    'channel': {
+        'CreateChannel': (channel_service_pb.CreateChannelRequest,
+                          channel_service_pb.CreateChannelResponse),
+        'SendChannelMessage': (channel_service_pb.SendMessageRequest,
+                               api_base_pb.VoidProto),
+    },
     'datastore_v3': {
         'Get':        (datastore_pb.GetRequest, datastore_pb.GetResponse),
         'Put':        (datastore_pb.PutRequest, datastore_pb.PutResponse),
@@ -56,11 +68,40 @@ SERVICE_PB_MAP = {
         'GetIndices': (api_base_pb.StringProto, datastore_pb.CompositeIndices),
         'AllocateIds':(datastore_pb.AllocateIdsRequest,
                        datastore_pb.AllocateIdsResponse),
-        'GetSchema': (datastore_pb.GetSchemaRequest, datastore_pb.Schema),
         'RunQuery':   (datastore_pb.Query,
                        datastore_pb.QueryResult),
         'RunCompiledQuery':(datastore_pb.RunCompiledQueryRequest,
                             datastore_pb.QueryResult),
+        'BeginTransaction':(datastore_pb.BeginTransactionRequest,
+                            datastore_pb.Transaction),
+        'Commit':          (datastore_pb.Transaction,
+                            datastore_pb.CommitResponse),
+        'Rollback':        (datastore_pb.Transaction,
+                            api_base_pb.VoidProto),
+    },
+    'file': {
+        'Create': (file_service_pb.CreateRequest,
+                   file_service_pb.CreateResponse),
+        'Open': (file_service_pb.OpenRequest,
+                 file_service_pb.OpenResponse),
+        'Close': (file_service_pb.CloseRequest,
+                  file_service_pb.CloseResponse),
+        'Append': (file_service_pb.AppendRequest,
+                   file_service_pb.AppendResponse),
+        'AppendKeyValue': (file_service_pb.AppendKeyValueRequest,
+                           file_service_pb.AppendKeyValueResponse),
+        'Stat': (file_service_pb.StatRequest,
+                 file_service_pb.StatResponse),
+        'Delete': (file_service_pb.DeleteRequest,
+                   file_service_pb.DeleteResponse),
+        'Read': (file_service_pb.ReadRequest,
+                 file_service_pb.ReadResponse),
+        'ReadKeyValue': (file_service_pb.ReadKeyValueRequest,
+                         file_service_pb.ReadKeyValueResponse),
+        'Shuffle': (file_service_pb.ShuffleRequest,
+                    file_service_pb.ShuffleResponse),
+        'GetShuffleStatus': (file_service_pb.GetShuffleStatusRequest,
+                             file_service_pb.GetShuffleStatusResponse),
     },
     'images': {
         'Transform': (images_service_pb.ImagesTransformRequest,
@@ -95,21 +136,39 @@ SERVICE_PB_MAP = {
         'GetIDs':      (remote_api_pb.PutRequest, datastore_pb.PutResponse),
     },
     'taskqueue': {
-        'Add':       (taskqueue_service_pb.TaskQueueAddRequest,
-                      taskqueue_service_pb.TaskQueueAddResponse),
-        'BulkAdd':   (taskqueue_service_pb.TaskQueueBulkAddRequest,
-                      taskqueue_service_pb.TaskQueueBulkAddResponse),
-        'UpdateQueue':(taskqueue_service_pb.TaskQueueUpdateQueueRequest,
-                       taskqueue_service_pb.TaskQueueUpdateQueueResponse),
-        'FetchQueues':(taskqueue_service_pb.TaskQueueFetchQueuesRequest,
-                       taskqueue_service_pb.TaskQueueFetchQueuesResponse),
-        'FetchQueueStats':(
+        'Add': (taskqueue_service_pb.TaskQueueAddRequest,
+                taskqueue_service_pb.TaskQueueAddResponse),
+        'BulkAdd': (taskqueue_service_pb.TaskQueueBulkAddRequest,
+                    taskqueue_service_pb.TaskQueueBulkAddResponse),
+        'UpdateQueue': (taskqueue_service_pb.TaskQueueUpdateQueueRequest,
+                        taskqueue_service_pb.TaskQueueUpdateQueueResponse),
+        'FetchQueues': (taskqueue_service_pb.TaskQueueFetchQueuesRequest,
+                        taskqueue_service_pb.TaskQueueFetchQueuesResponse),
+        'FetchQueueStats': (
             taskqueue_service_pb.TaskQueueFetchQueueStatsRequest,
             taskqueue_service_pb.TaskQueueFetchQueueStatsResponse),
+        'Delete': (taskqueue_service_pb.TaskQueueDeleteRequest,
+                   taskqueue_service_pb.TaskQueueDeleteResponse),
+        'PurgeQueue': (taskqueue_service_pb.TaskQueuePurgeQueueRequest,
+                       taskqueue_service_pb.TaskQueuePurgeQueueResponse),
+        'QueryTasks': (taskqueue_service_pb.TaskQueueQueryTasksRequest,
+                       taskqueue_service_pb.TaskQueueQueryTasksResponse),
+        'QueryAndOwnTasks': (
+            taskqueue_service_pb.TaskQueueQueryAndOwnTasksRequest,
+            taskqueue_service_pb.TaskQueueQueryAndOwnTasksResponse),
+        'ModifyTaskLease': (
+            taskqueue_service_pb.TaskQueueModifyTaskLeaseRequest,
+            taskqueue_service_pb.TaskQueueModifyTaskLeaseResponse),
     },
     'urlfetch': {
         'Fetch': (urlfetch_service_pb.URLFetchRequest,
                   urlfetch_service_pb.URLFetchResponse),
+    },
+    'user': {
+        'CreateLoginURL': (user_service_pb.CreateLoginURLRequest,
+                           user_service_pb.CreateLoginURLResponse),
+        'CreateLogoutURL': (user_service_pb.CreateLogoutURLRequest,
+                            user_service_pb.CreateLogoutURLResponse),
     },
     'xmpp': {
         'GetPresence': (xmpp_service_pb.PresenceRequest,
@@ -118,5 +177,7 @@ SERVICE_PB_MAP = {
                         xmpp_service_pb.XmppMessageResponse),
         'SendInvite':  (xmpp_service_pb.XmppInviteRequest,
                         xmpp_service_pb.XmppInviteResponse),
+        'SendPresence':  (xmpp_service_pb.XmppSendPresenceRequest,
+                        xmpp_service_pb.XmppSendPresenceResponse),
     },
 }

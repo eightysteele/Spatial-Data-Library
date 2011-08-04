@@ -15,11 +15,18 @@
 # limitations under the License.
 #
 
+
+
+
 """Sends email on behalf of application.
 
 Provides functions for application developers to provide email services
 for their applications.  Also provides a few utility methods.
 """
+
+
+
+
 
 
 
@@ -42,6 +49,12 @@ from google.appengine.runtime import apiproxy_errors
 
 
 
+
+
+
+
+
+
 ERROR_MAP = {
     mail_service_pb.MailServiceError.BAD_REQUEST:
       BadRequestError,
@@ -51,7 +64,15 @@ ERROR_MAP = {
 
     mail_service_pb.MailServiceError.INVALID_ATTACHMENT_TYPE:
       InvalidAttachmentTypeError,
+
+    mail_service_pb.MailServiceError.INVALID_HEADER_NAME:
+      InvalidHeaderNameError,
 }
+
+
+
+
+
 
 
 EXTENSION_MIME_MAP = {
@@ -74,6 +95,8 @@ EXTENSION_MIME_MAP = {
     'jpe': 'image/jpeg',
     'jpeg': 'image/jpeg',
     'jpg': 'image/jpeg',
+    'kml': 'application/vnd.google-earth.kml+xml',
+    'kmz': 'application/vnd.google-earth.kmz',
     'm4a': 'audio/mp4',
     'mid': 'audio/mid',
     'mov': 'video/quicktime',
@@ -106,10 +129,18 @@ EXTENSION_MIME_MAP = {
     'vcf': 'text/directory',
     'wav': 'audio/x-wav',
     'wbmp': 'image/vnd.wap.wbmp',
+    'webm': 'video/webm',
+    'webp': 'image/webp',
     'xls': 'application/vnd.ms-excel',
     }
 
 EXTENSION_WHITELIST = frozenset(EXTENSION_MIME_MAP.iterkeys())
+
+
+HEADER_WHITELIST = frozenset([
+    'In-Reply-To',
+    'References',
+    ])
 
 
 def invalid_email_reason(email_address, field):
@@ -135,6 +166,7 @@ def invalid_email_reason(email_address, field):
     return 'Empty email address for %s.' % field
   return None
 
+
 InvalidEmailReason = invalid_email_reason
 
 
@@ -148,6 +180,7 @@ def is_email_valid(email_address):
     True if email is valid, else False.
   """
   return invalid_email_reason(email_address, '') is None
+
 
 IsEmailValid = is_email_valid
 
@@ -166,7 +199,54 @@ def check_email_valid(email_address, field):
   if reason is not None:
     raise InvalidEmailError(reason)
 
+
 CheckEmailValid = check_email_valid
+
+
+def is_ascii(string):
+  """Return whether a string is in ascii."""
+  return all(ord(c) < 128 for c in string)
+
+
+def invalid_headers_reason(headers):
+  """Determine reason why headers is invalid.
+
+  Args:
+    headers: headers value to check.
+
+  Returns:
+    String indicating invalid headers reason if there is one,
+    else None.
+  """
+  if headers is None:
+    return 'Headers dictionary was None.'
+  if not isinstance(headers, dict):
+    return 'Invalid type for headers. Should be a dictionary.'
+  for k, v in headers.iteritems():
+    if not isinstance(k, basestring):
+      return 'Header names should be strings.'
+    if not isinstance(v, basestring):
+      return 'Header values should be strings.'
+    if not is_ascii(k):
+      return 'Header name should be an ASCII string.'
+
+    if k.strip() not in HEADER_WHITELIST:
+      return 'Header "%s" is not allowed.' % k.strip()
+
+
+def check_headers_valid(headers):
+  """Check that headers is a valid dictionary for headers.
+
+  Args:
+    headers: the value to check for the headers.
+
+  Raises:
+    InvalidEmailError if headers is invalid.
+  """
+  reason = invalid_headers_reason(headers)
+  if reason is not None:
+    raise InvalidEmailError(reason)
+
 
 
 def _email_check_and_list(emails, field):
@@ -239,6 +319,7 @@ def _parse_mime_message(mime_message):
   elif isinstance(mime_message, basestring):
     return email.message_from_string(mime_message)
   else:
+
     return email.message_from_file(mime_message)
 
 
@@ -269,6 +350,7 @@ def send_mail(sender,
   message = EmailMessage(**kw)
   message.send(make_sync_call)
 
+
 SendMail = send_mail
 
 
@@ -295,6 +377,7 @@ def send_mail_to_admins(sender,
   kw['body'] = body
   message = AdminEmailMessage(**kw)
   message.send(make_sync_call)
+
 
 SendMailToAdmins = send_mail_to_admins
 
@@ -355,11 +438,14 @@ def mail_message_to_mime_message(protocol_message):
                                    _subtype='html'))
 
   if len(parts) == 1:
+
     payload = parts
   else:
+
     payload = [MIMEMultipart.MIMEMultipart('alternative', _subparts=parts)]
 
   result = MIMEMultipart.MIMEMultipart(_subparts=payload)
+
   for attachment in protocol_message.attachment_list():
     file_name = attachment.filename()
     mime_type = _GetMimeType(file_name)
@@ -370,6 +456,7 @@ def mail_message_to_mime_message(protocol_message):
                                filename=attachment.filename())
     mime_attachment.set_payload(attachment.data())
     result.attach(mime_attachment)
+
 
   if protocol_message.to_size():
     result['To'] = ', '.join(protocol_message.to_list())
@@ -383,6 +470,7 @@ def mail_message_to_mime_message(protocol_message):
   result['Subject'] = protocol_message.subject()
 
   return result
+
 
 MailMessageToMIMEMessage = mail_message_to_mime_message
 
@@ -442,6 +530,7 @@ class EncodedPayload(object):
     """
     payload = self.payload
 
+
     if self.encoding and self.encoding.lower() != '7bit':
       try:
         payload = payload.decode(self.encoding)
@@ -449,6 +538,7 @@ class EncodedPayload(object):
         raise UnknownEncodingError('Unknown decoding %s.' % self.encoding)
       except (Exception, Error), e:
         raise PayloadEncodingError('Could not decode payload: %s' % e)
+
 
     if self.charset and str(self.charset).lower() != '7bit':
       try:
@@ -530,6 +620,7 @@ class _EmailMessageBase(object):
   of its underlying mail sending API call.
   """
 
+
   PROPERTIES = set([
       'sender',
       'reply_to',
@@ -538,6 +629,8 @@ class _EmailMessageBase(object):
       'html',
       'attachments',
   ])
+
+
 
   PROPERTIES.update(('to', 'cc', 'bcc'))
 
@@ -557,6 +650,8 @@ class _EmailMessageBase(object):
       self.update_from_mime_message(mime_message)
       self.__original = mime_message
 
+
+
     self.initialize(**kw)
 
   @property
@@ -574,6 +669,7 @@ class _EmailMessageBase(object):
     """
     for name, value in kw.iteritems():
       setattr(self, name, value)
+
 
   def Initialize(self, **kw):
     self.initialize(**kw)
@@ -611,6 +707,7 @@ class _EmailMessageBase(object):
     if not hasattr(self, 'subject'):
       raise MissingSubjectError()
 
+
     found_body = False
 
     try:
@@ -619,6 +716,7 @@ class _EmailMessageBase(object):
       pass
     else:
       if isinstance(body, EncodedPayload):
+
         body.decode()
       found_body = True
 
@@ -628,18 +726,26 @@ class _EmailMessageBase(object):
       pass
     else:
       if isinstance(html, EncodedPayload):
+
         html.decode()
       found_body = True
+
 
     if not found_body:
       raise MissingBodyError()
 
     if hasattr(self, 'attachments'):
       for file_name, data in _attachment_sequence(self.attachments):
+
+
         _GetMimeType(file_name)
+
+
+
 
         if isinstance(data, EncodedPayload):
           data.decode()
+
 
   def CheckInitialized(self):
     self.check_initialized()
@@ -655,6 +761,7 @@ class _EmailMessageBase(object):
       return True
     except Error:
       return False
+
 
   def IsInitialized(self):
     return self.is_initialized()
@@ -721,6 +828,7 @@ class _EmailMessageBase(object):
     """
     return mail_message_to_mime_message(self.ToProto())
 
+
   def ToMIMEMessage(self):
     return self.to_mime_message()
 
@@ -745,11 +853,13 @@ class _EmailMessageBase(object):
         raise ERROR_MAP[e.application_error](e.error_detail)
       raise e
 
+
   def Send(self, *args, **kwds):
     self.send(*args, **kwds)
 
   def _check_attachment(self, attachment):
     file_name, data = attachment
+
     if not (isinstance(file_name, basestring) or
             isinstance(data, basestring)):
       raise TypeError()
@@ -793,8 +903,10 @@ class _EmailMessageBase(object):
       if not value:
         raise ValueError('May not set empty value for \'%s\'' % attr)
 
+
       if attr not in self.PROPERTIES:
         raise AttributeError('\'EmailMessage\' has no attribute \'%s\'' % attr)
+
 
       if attr == 'attachments':
         self._check_attachments(value)
@@ -810,6 +922,7 @@ class _EmailMessageBase(object):
       content_type: Content-type of body.
       payload: Payload to store body as.
     """
+
     if content_type == 'text/plain':
       self.body = payload
     elif content_type == 'text/html':
@@ -839,12 +952,14 @@ class _EmailMessageBase(object):
         if not filename:
           filename = mime_message.get_param('name')
 
+
         payload = EncodedPayload(payload,
                                  (mime_message.get_content_charset() or
                                   mime_message.get_charset()),
                                  mime_message['content-transfer-encoding'])
 
         if filename:
+
           try:
             attachments = self.attachments
           except AttributeError:
@@ -939,7 +1054,7 @@ class EmailMessage(_EmailMessageBase):
   """
 
   _API_CALL = 'Send'
-  PROPERTIES = set(_EmailMessageBase.PROPERTIES)
+  PROPERTIES = set(_EmailMessageBase.PROPERTIES | set(('headers',)))
 
   def check_initialized(self):
     """Provide additional checks to ensure recipients have been specified.
@@ -952,6 +1067,7 @@ class EmailMessage(_EmailMessageBase):
         not hasattr(self, 'bcc')):
       raise MissingRecipientsError()
     super(EmailMessage, self).check_initialized()
+
 
   def CheckInitialized(self):
     self.check_initialized()
@@ -970,16 +1086,23 @@ class EmailMessage(_EmailMessageBase):
       if hasattr(self, attribute):
         for address in _email_sequence(getattr(self, attribute)):
           adder(_to_str(address))
+    for name, value in getattr(self, 'headers', {}).iteritems():
+      header = message.add_header()
+      header.set_name(name)
+      header.set_value(_to_str(value))
     return message
 
   def __setattr__(self, attr, value):
     """Provides additional checks on recipient fields."""
+
     if attr in ['to', 'cc', 'bcc']:
       if isinstance(value, basestring):
         check_email_valid(value, attr)
       else:
         for address in value:
           check_email_valid(address, attr)
+    elif attr == 'headers':
+      check_headers_valid(value)
 
     super(EmailMessage, self).__setattr__(attr, value)
 
@@ -1113,8 +1236,10 @@ class InboundEmailMessage(EmailMessage):
     """
     if (content_type == 'text/plain' and not hasattr(self, 'body') or
         content_type == 'text/html' and not hasattr(self, 'html')):
+
       super(InboundEmailMessage, self)._add_body(content_type, payload)
     else:
+
       try:
         alternate_bodies = self.alternate_bodies
       except AttributeError:
@@ -1177,4 +1302,13 @@ class InboundEmailMessage(EmailMessage):
     return mime_message
 
 
+
+
+
+
+
+
+
+
 Parser.Parser
+
