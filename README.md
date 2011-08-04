@@ -1,22 +1,29 @@
-# Spatial-Data-Library
+Spatial-Data-Library
+====================
+
+http://eightysteele.github.com/Spatial-Data-Library
 
 The primary goal is to provide efficient API access to WorldClim and World Ocean Atlas (WOA) data for look-ups and visualization.
 
-## Authors
+Authors
+-------
 
 Aaron Steele (eightysteele@gmail.com) 
 Dave Vieglais (dave.vieglais@gmail.com) 
 John Wieczorek (tuco@berkeley.edu) 
 
-## Documentation
+Documentation
+-------------
 
 http://docs.geo-ds.appspot.com
 
-##Contact
+Contact
+-------
 
 Aaron Steele (eightysteele@gmail.com) 
 
-## Download
+Download
+--------
 
 You can download this project in either zip or tar formats.
 zip - http://github.com/eightysteele/Spatial-Data-Library/zipball/master
