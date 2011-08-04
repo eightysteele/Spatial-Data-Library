@@ -36,7 +36,7 @@ from sdl import rmg
 # CouchDb connection parameters:
 COUCHDB_HOST = 'http://eighty.berkeley.edu'
 COUCHDB_PORT = 5984
-COUCHDB_DATABASE = 'sdl-dev' #'worldclim-rmg'
+COUCHDB_DATABASE = 'worldclim-rmg'
 COUCHDB_DESIGN = 'api'
 COUCHDB_VIEW = 'cells'
 COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % \
@@ -210,10 +210,11 @@ class CellValuesHandler(webapp.RequestHandler):
             return
         
         # Get cell key unqiues
+        cell_keys = set()
         if k: 
-            cell_keys = set([x.strip() for x in k.split(',')])
-        else: 
-            cell_keys = self.cell_keys_from_coords([x.strip() for x in xy.split('|')])
+            cell_keys.update([x.strip() for x in k.split(',')])
+        if xy:
+            cell_keys.update(self.cell_keys_from_coords([x.strip() for x in xy.split('|')]))
 
         # Invalid request
         if not cell_keys:
