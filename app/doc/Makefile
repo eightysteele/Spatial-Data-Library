@@ -128,3 +128,11 @@ doctest:
 	$(SPHINXBUILD) -b doctest $(ALLSPHINXOPTS) $(BUILDDIR)/doctest
 	@echo "Testing of doctests in the sources finished, look at the " \
 	      "results in $(BUILDDIR)/doctest/output.txt."
+
+appserver:
+	cp gae/gae.py _build
+	cp gae/app.yaml _build
+	dev_appserver.py `pwd`/_build
+
+appupdate:
+	appcfg.py --verbose update `pwd`/_build

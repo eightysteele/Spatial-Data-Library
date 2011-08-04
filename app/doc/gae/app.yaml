@@ -1,0 +1,11 @@
+application: geo-ds
+version: docs
+runtime: python
+api_version: 1
+
+handlers:
+- url: /html
+  static_dir: html
+
+- url: /.*
+  script: gae.py
