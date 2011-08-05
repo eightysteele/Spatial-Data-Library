@@ -38,11 +38,31 @@ digits = 7
 
 class RMGTest(unittest.TestCase):
     def test_cells_in_bb(self):
-        nwcorner = Point(-180, 0)
-        secorner = Point(-158, 0)
+        nwcorner = Point(150, 0)
+        secorner = Point(-150, 0)
         cells_per_degree = 0.1
-        print RMGCell.cells_in_bb(nwcorner, secorner, cells_per_degree, a, inverse_flattening)
-
+        for cell in RMGCell.cells_in_bb(nwcorner, secorner, startkey=None, cells_per_degree=cells_per_degree, a=a, inverse_flattening=inverse_flattening):
+            print cell
+        
+        startkey = '34-9'
+        print 'KEY: %s POLYGON: %s' % (startkey, RMGCell.polygon(startkey, cells_per_degree, digits, a, inverse_flattening))
+        startkey = '35-9'
+        print 'KEY: %s POLYGON: %s' % (startkey, RMGCell.polygon(startkey, cells_per_degree, digits, a, inverse_flattening))
+        startkey = '0-9'
+        print 'KEY: %s POLYGON: %s' % (startkey, RMGCell.polygon(startkey, cells_per_degree, digits, a, inverse_flattening))
+        
+        startkey = RMGCell.key(nwcorner.get_lng(), nwcorner.get_lat(), cells_per_degree, a, inverse_flattening)
+        startkey = '34-9'
+        print 'startkey = %s' % startkey
+        cells=[]
+        for cell in RMGCell.cells_in_bb(nwcorner, secorner, startkey=startkey, cells_per_degree=cells_per_degree):
+            cells.append(cell)
+            if len(cells) == 5:
+                print cells
+                cells=[]
+                startkey = cell
+        print cells
+    
     def test_distances_per_degree(self):
         lat = 0
         lngdpd, latdpd = RMGCell.distances_per_degree(lat, a, inverse_flattening)
@@ -77,21 +97,21 @@ class RMGTest(unittest.TestCase):
         lat = 90
         cells_per_degree = 1
         key = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
-        self.assertEqual(key,"0-0")
+        self.assertEqual(key,'0-0')
 
     def test_key0_1(self):
         lng = -180
         cells_per_degree = 1
         lat = 90 - 1.0/cells_per_degree
         key = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
-        self.assertEqual(key,"0-1")
+        self.assertEqual(key,'0-1')
 
     def test_key1_1(self):
         lng = 180
         cells_per_degree = 1
         lat = 90 - 1.0/cells_per_degree
         key = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
-        self.assertEqual(key,"9-1")
+        self.assertEqual(key,'9-1')
 
     def test_center(self):
         lat = 0
@@ -173,14 +193,14 @@ class RMGTest(unittest.TestCase):
         lat = -5.45
         lng = 39.12
         key = RMGCell.key(lng, lat, cells_per_degree)
-        print "lat: "+str(lat) +" lng: "+str(lng) + " key: "+key
+        print 'lat: '+str(lat) +' lng: '+str(lng) + ' key: '+key
 
-        key="26567-10800"
+        key='26567-10800'
         polygon = RMGCell.polygon(key, cells_per_degree)
         center = RMGCell.center(key)
         print 'key: %s center: %s polygon: %s' % (key, center, polygon)
 
-        key="18-11"
+        key='18-11'
         polygon = RMGCell.polygon(key, cells_per_degree)
         print polygon
 
@@ -189,8 +209,8 @@ class RMGTest(unittest.TestCase):
             lat = float(corner[1])
             key = RMGCell.key(lng, lat, cells_per_degree)
             polygon = RMGCell.polygon(key, cells_per_degree)
-            print key+" "+str(polygon)
-
+            print key+' '+str(polygon)
+            
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     unittest.main()

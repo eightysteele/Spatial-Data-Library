@@ -267,12 +267,13 @@ class RMGCell(object):
         return int(y_index)
 
     @staticmethod
-    def cells_in_bb(nwcorner, secorner, cells_per_degree=CELLS_PER_DEGREE, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
-        """Returns a set of distinct cell keys within or intersecting the bounding box.
+    def cells_in_bb(nwcorner, secorner, startkey=None, cells_per_degree=CELLS_PER_DEGREE, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
+        """Generator returning distinct cell keys within or intersecting the given bounding box.
 
         Arguments:
             nwcorner - the Point specifying the northwest corner of the bounding box
             secorner - the Point specifying the southeast corner of the bounding box
+            startkey - optional cell key at which to start iteration
             cells_per_degree - the desired resolution of the grid
             a - the semi-major axis of the ellipsoid for the coordinate reference system
             inverse_flattening - the inverse of the ellipsoid's flattening parameter
@@ -285,23 +286,27 @@ class RMGCell(object):
         lng = nwcorner.get_lng()
         x_index = int(nwkey.split('-')[0])
         y_index = int(nwkey.split('-')[1])
+        lng = RMGCell.mid_lng(x_index, y_index, cells_per_degree, a, inverse_flattening)
+        if startkey is not None:
+            x_index = int(startkey.split('-')[0])
+            y_index = int(startkey.split('-')[1])
+            lng = RMGCell.mid_lng(x_index, y_index, cells_per_degree, a, inverse_flattening)
+            
         while y_index <= int(sekey.split('-')[1]):
             eastkey = RMGCell.key(secorner.get_lng(), lat, cells_per_degree, a, inverse_flattening)
             east_x = int(eastkey.split('-')[0])
             while x_index != east_x:
-                cellkeys.add('%s-%s' % (x_index, y_index))
-                lng += RMGCell.width(y_index, cells_per_degree, a, inverse_flattening)
+                yield '%s-%s' % (x_index, y_index)
+                lng = lng180(lng + RMGCell.width(y_index, cells_per_degree, a, inverse_flattening))
                 nextkey = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
                 indexes = nextkey.split('-')
                 x_index = int(indexes[0])
-            cellkeys.add('%s-%s' % (east_x, y_index))
+            yield '%s-%s' % (east_x, y_index)
             lat -= 1.0/cells_per_degree
             nextkey = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
             indexes = nextkey.split('-')
             x_index = int(indexes[0])
             y_index = int(indexes[1])
-        return cellkeys
-#        return list(set(cellkeys))
             
     @staticmethod
     def key(lng, lat, cells_per_degree=CELLS_PER_DEGREE, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
