@@ -34,8 +34,15 @@ from sdl.rmg import *
 
 a = 6378137.0 # WGS84 semi-major axis
 inverse_flattening = 298.257223563 # WGS84 inverse flattening
+digits = 7
 
 class RMGTest(unittest.TestCase):
+    def test_cells_in_bb(self):
+        nwcorner = Point(-180, 0)
+        secorner = Point(-158, 0)
+        cells_per_degree = 0.1
+        print RMGCell.cells_in_bb(nwcorner, secorner, cells_per_degree, a, inverse_flattening)
+
     def test_distances_per_degree(self):
         lat = 0
         lngdpd, latdpd = RMGCell.distances_per_degree(lat, a, inverse_flattening)
@@ -187,3 +194,4 @@ class RMGTest(unittest.TestCase):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     unittest.main()
+

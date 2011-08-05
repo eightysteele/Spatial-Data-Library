@@ -239,6 +239,14 @@ class RMGCell(object):
 
     @staticmethod
     def column_count(lat, cells_per_degree=CELLS_PER_DEGREE, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
+        """Returns the number of cells at a given latitude.
+
+        Arguments:
+            lat - the latitude of a Point for which the count is sought
+            cells_per_degree - the desired resolution of the grid
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            inverse_flattening - the inverse of the ellipsoid's flattening parameter 
+        """
         key = RMGCell.key(-180, lat, cells_per_degree, a, inverse_flattening)
         indexes = key.split('-')
         y_index = int(indexes[1])
@@ -259,6 +267,43 @@ class RMGCell(object):
         return int(y_index)
 
     @staticmethod
+    def cells_in_bb(nwcorner, secorner, cells_per_degree=CELLS_PER_DEGREE, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
+        """Returns a set of distinct cell keys within or intersecting the bounding box.
+
+        Arguments:
+            nwcorner - the Point specifying the northwest corner of the bounding box
+            secorner - the Point specifying the southeast corner of the bounding box
+            cells_per_degree - the desired resolution of the grid
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            inverse_flattening - the inverse of the ellipsoid's flattening parameter
+                (298.257223563 for WGS84)
+        """
+        cellkeys = set()
+        nwkey = RMGCell.key(nwcorner.get_lng(), nwcorner.get_lat(), cells_per_degree, a, inverse_flattening)
+        sekey = RMGCell.key(secorner.get_lng(), secorner.get_lat(), cells_per_degree, a, inverse_flattening)
+        lat = nwcorner.get_lat()
+        lng = nwcorner.get_lng()
+        x_index = int(nwkey.split('-')[0])
+        y_index = int(nwkey.split('-')[1])
+        while y_index <= int(sekey.split('-')[1]):
+            eastkey = RMGCell.key(secorner.get_lng(), lat, cells_per_degree, a, inverse_flattening)
+            east_x = int(eastkey.split('-')[0])
+            while x_index != east_x:
+                cellkeys.add('%s-%s' % (x_index, y_index))
+                lng += RMGCell.width(y_index, cells_per_degree, a, inverse_flattening)
+                nextkey = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
+                indexes = nextkey.split('-')
+                x_index = int(indexes[0])
+            cellkeys.add('%s-%s' % (east_x, y_index))
+            lat -= 1.0/cells_per_degree
+            nextkey = RMGCell.key(lng, lat, cells_per_degree, a, inverse_flattening)
+            indexes = nextkey.split('-')
+            x_index = int(indexes[0])
+            y_index = int(indexes[1])
+        return cellkeys
+#        return list(set(cellkeys))
+            
+    @staticmethod
     def key(lng, lat, cells_per_degree=CELLS_PER_DEGREE, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
         """Returns the unique identifier for a cell given a longitude, latitude, and parameters 
         of the ellipsoid on which this coordinate occurs.
@@ -266,10 +311,10 @@ class RMGCell(object):
         Arguments:
             lng - the longitude of a Point for which the enclosing cell is sought
             lat - the latitude of a Point for which the enclosing cell is sought
+            cells_per_degree - the desired resolution of the grid
             a - the semi-major axis of the ellipsoid for the coordinate reference system
             inverse_flattening - the inverse of the ellipsoid's flattening parameter 
                 (298.257223563 for WGS84)
-            cells_per_degree - the desired resolution of the grid
         """
         y_index = RMGCell.lat2y(lat, cells_per_degree)
         midlat = RMGCell.mid_lat(y_index, cells_per_degree)
@@ -522,8 +567,6 @@ class RMGTile(object):
         Arguments:
             None
         """ 
-        # TODO: Deal with the case of cells crossing lng = 180
-        # TODO: Deal with the issue of cells crossing outside Worldclim tiles
         cells = set()
         north = self.nwcorner.lat
         west = self.nwcorner.lng
@@ -719,3 +762,4 @@ if __name__ == '__main__':
         f.flush()
         f.close()
         print tile.kml()
+

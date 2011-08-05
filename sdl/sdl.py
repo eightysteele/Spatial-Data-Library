@@ -159,6 +159,29 @@ def getpolygon(key, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, i
     """
     return RMGCell.polygon(key, cells_per_degree, digits, a, inverse_flattening)
 
+def translatestatistic(varname, stat, statval):
+    """ Returns a translated value for a starspan-processed Worldclim statistic (avg, stddev, min, max). 
+        Translation includes returning spurious large integer values 
+        (starspan must use an unsigned short int at some point)
+        to their correct negative values, then truncating these values to be integers.
+        
+        Arguments:
+            varname - the name of the variable to which the statistic applies (tmean, prec, alt...)
+            stat - the statistic the value represents (avg, stddev, min, max)
+            statval - the value of the statistic as returned from starspan
+    """
+    newval = float(statval)
+    if stat == 'stddev':
+        return truncate(newval,0)
+    else:
+        if newval > 55537: # Actual value is a negative number greater than the nodata value of -9999
+            newval = newval - 65536
+        if varname == 'tmean':
+            # tmen in Worldclim is degrees Celsius times 10, turn it into degrees Celsius
+            newval = newval/10.0
+            return truncate(newval,1)
+    return truncate(newval,0)
+
 def translatevariable(varval):
     """ Returns a translated value for a starspan-processed Worldclim variable. Translation includes
         returning spurious large integer values (starspan must use an unsigned short int at some point)
@@ -271,7 +294,7 @@ class Tile(object):
         logging.info('Cell batch shapefile %s prepared in %s' % (filename, t1-t0))
         clippedfile = Tile.clip2cell('%s.shp' % filename, self.filename)
         csvfile = Tile.statistics2csv(clippedfile, options)
-        Tile.csv2couch(csvfile, options)
+        Tile.starspan2csv2couch(csvfile, options)
 
     def polygon(self):
         """ Returns a closed polygon (list of Points - nw, sw, se, ne, nw) for the Tile."""
@@ -282,19 +305,23 @@ class Tile(object):
         return [(w, n), (w, s), (e, s), (e, n), (w, n)]
 
     @classmethod
-    def csv2couch(cls, csvfile, options):
-        """ Loads cells from csv file to CouchDB.
+    def starspan2csv2couch(cls, csvfile, options):
+        """ Loads cells having avg stddev min and max values of a variable from 
+            starspan2csv file to CouchDB.
             
             Arguments:
+                stats - a list of the statistics calculations expected in the starspan file
                 csvfile - the CSV file containing the cells to load
                 options - the options parsed from the command line. Uses:
                     couchurl - the URL of the CouchDB server
+                    database - the name of the database in CouchDB
                     cells_per_degree - the desired resolution of the grid
         """
         t0 = time.time()
-        logging.info('Beginning csv2couch(), preparing cells for bulkloading from %s.' % (csvfile) )
+        logging.info('Beginning starspan2csv2couch(), preparing cells for bulkloading from %s.' % (csvfile) )
         server = couchdb.Server(options.couchurl)
         cdb = server[options.database]
+        stats = ['avg','stddev','min','max']
         cells_per_degree = float(options.cells_per_degree)
         dr = csv.DictReader(open(csvfile, 'r'))
         cells = {}
@@ -308,10 +335,12 @@ class Tile(object):
                     'vars': {}
                     }            
             varname = row.get('RID').split('_')[0]
-            # the following dependent on running starspan with --stats %s avg
-            varval = row.get('avg_Band1')
-            # the following need for Worldclim because of the -9999 NODATA value.
-            cells.get(cellkey).get('vars')[varname] = translatevariable(varval)
+            for stat in stats:
+                statname = '%s_Band1' % (stat)
+                statval = row.get(statname)
+                varstat = '%s_%s' % (varname,stat)
+                # the following needed to process Worldclim stats for representation in the datastore
+                cells.get(cellkey).get('vars')[varstat] = translatestatistic(varname, stat, statval)
         t1 = time.time()
         logging.info('%s cells prepared for upload in %s' % (len(cells), t1-t0))
         cdb.update(cells.values())
@@ -335,7 +364,34 @@ class Tile(object):
                          if x.endswith('.bil')]
         variables = reduce(lambda x,y: '%s %s' % (x, y), variables)
         csvfile = shapefile.replace('.shp', '.csv')
-        # Call starspan requesting mean of variable, exclusing nodata values (-9999 in the file is the same as 55537)
+        # Call starspan requesting mean of variable, excluding nodata values (-9999 in the file is the same as 55537)
+        # starspan -- vector 0-clipped.shp --raster tmean
+        command = 'starspan --vector %s --raster %s --stats %s avg stddev min max --nodata 55537' \
+            % (shapefile, variables, csvfile)
+        args = shlex.split(command)
+        subprocess.call(args)
+        t1 = time.time()
+        logging.info('starspan statistics finished in %s.' % (t1-t0) )
+        return csvfile
+        
+    @classmethod
+    def starspan2csv(cls, shapefile, options):      
+        """ Extracts statistics on variables in the Worldclim tile for the cells
+            in the shapefile via starspan.
+
+            Arguments:
+                shapefile - the shapefile containing the cells
+                options - the options parsed from the command line. Uses:
+                    vardir - the path to the directory in which to store the Worldclim files
+        """
+        t0 = time.time()
+        logging.info('Beginning starspan statistics on %s.' % (shapefile) )
+        variables = [os.path.join(options.vardir, x) \
+                         for x in os.listdir(options.vardir) \
+                         if x.endswith('.bil')]
+        variables = reduce(lambda x,y: '%s %s' % (x, y), variables)
+        csvfile = shapefile.replace('.shp', '.csv')
+        # Call starspan requesting mean of variable, excluding nodata values (-9999 in the file is the same as 55537)
         command = 'starspan --vector %s --raster %s --stats %s avg --nodata 55537' \
             % (shapefile, variables, csvfile)
         args = shlex.split(command)
@@ -585,14 +641,14 @@ if __name__ == '__main__':
         t1 = time.time()
         logging.info('Finished command clip in %ss.' % (t1-t0))
 
-    if command == 'csv2couchdb':
-        logging.info('Beginning command csv2couch.')
+    if command == 'starspan2csv2couchdb':
+        logging.info('Beginning command starspan2csv2couch.')
         t0 = time.time()
         tile = maketile(options)
         csvfile = os.path.join(options.workspace, options.csvfile)
-        tile.csv2couch(csvfile, options)
+        tile.starspan2csv2couch(csvfile, options)
         t1 = time.time()
-        logging.info('Finished command csv2couch in %ss.' % (t1-t0))
+        logging.info('Finished command starspan2csv2couch in %ss.' % (t1-t0))
 
     if command == 'load':
         logging.info('Beginning command load.')
@@ -628,4 +684,14 @@ if __name__ == '__main__':
         cleanworkspace(options)
         t1 = time.time()
         logging.info('Finished command cleanworkspace in %ss.' % (t1-t0))
+
+    if command == 'test':
+        logging.info('Beginning command test.')
+        t0 = time.time()
+        # sdl.py -c test -k 32 -d worldclim-rmg-32 -u http://eightysteele.berkeley.edu:5984 -n 120 -w /Users/tuco/Data/SDL/workspace -p 0-clipped.csv
+# ./sdl.py -v /home/tuco/Data/SDL/worldclim/32 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg-32 -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 32 -f 60,0 -t 30,-30 -n 120 -b 50000 > /home/tuco/SDL/workspace/tile32starspan.log &
+        tile = maketile(options)
+        tile.starspan2csv2couch(os.path.join(options.workspace, options.csvfile), options)
+        t1 = time.time()
+        logging.info('Finished command test in %ss.' % (t1-t0))
 
