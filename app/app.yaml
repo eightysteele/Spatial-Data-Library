@@ -3,6 +3,9 @@ version: dev
 runtime: python
 api_version: 1
 
+inbound_services:
+- mail
+
 builtins:
 - datastore_admin: on
 - appstats: on
@@ -11,6 +14,14 @@ handlers:
 
 - url: /remote_api
   script: $PYTHON_LIB/google/appengine/ext/remote_api/handler.py
+  login: admin
+
+# GitHub service hooks
+- url: /service-hooks/post-receive
+  script: github_service_hooks.py 
+
+- url: /_ah/mail/.+ 
+  script: inbound_mail_handler.py
   login: admin
 
 - url: /api/.*
