@@ -271,24 +271,45 @@ class CellValuesHandler(webapp.RequestHandler):
             v - variable names (varname,varname,...)
             c - return cell coordinates if true
             si - return converted variable values to standard SI units if true
+            bb - bounding box (north,west|south,east)
+            bbo - bounding box offset cell key
+            bbl - bounding box cell limit
         """
         xy = self.request.get('xy', None) 
         k = self.request.get('k', None)  
         v = self.request.get('v', None) 
         c = 'true' == self.request.get('c') 
         si = 'true' == self.request.get('si')
+        bb = self.request.get('bb', None)
+        bbl = self.request.get_range('bbl', min_value=1, max_value=100, default=10)
+        bbo = self.request.get('bbo', None)
 
         # Invalid request
-        if not k and not xy:
+        if not k and not xy and not bb:
             self.error(404)
             return
         
         # Get cell key unqiues
         cell_keys = set()
-        if k: 
-            cell_keys.update([x.strip() for x in k.split(',')])
-        if xy:
-            cell_keys.update(self.cell_keys_from_coords([x.strip() for x in xy.split('|')]))
+        offset_key = None
+        if bb: # If bb then ignore other cell key sources (e.g., k and xy)
+            nw,se = bb.split('|')
+            w,n = nw.split(',')
+            e,s = se.split(',')
+            nwpoint = rmg.Point(float(w), float(n)) # lon,lat
+            sepoint = rmg.Point(float(e), float(s)) # lon,lat
+            count = 0
+            for cell_key in rmg.RMGCell.cells_in_bb(nwpoint, sepoint, startkey=bbo):
+                if count == bbl:
+                    offset_key = cell_key
+                    break
+                count += 1
+                cell_keys.add(cell_key)
+        else: 
+            if k: 
+                cell_keys.update([x.strip() for x in k.split(',')])
+            if xy:
+                cell_keys.update(self.cell_keys_from_coords([x.strip() for x in xy.split('|')]))
 
         # Invalid request
         if not cell_keys:
@@ -341,6 +362,11 @@ class CellValuesHandler(webapp.RequestHandler):
                 
             # Add result
             results.append(result)
+
+        if offset_key:
+            results = dict(
+                offset_cell_key=offset_key,
+                cells=results)
             
         # Return all results as JSON
         json = simplejson.dumps(results)
