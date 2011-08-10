@@ -33,6 +33,9 @@ from google.appengine.ext.webapp.util import run_wsgi_app
 # SDL imports:
 from sdl import rmg
 
+# Datastore Plus imports
+from ndb import query, model
+
 # CouchDb connection parameters:
 COUCHDB_HOST = 'http://eighty.berkeley.edu'
 COUCHDB_PORT = 5984
@@ -117,35 +120,101 @@ SI_CONVERSIONS = dict(
     tmin8=lambda x: int(x)/10.0,
     tmin9=lambda x: int(x)/10.0)
 
-class CouchDbCell(db.Model):
+class Cell(model.Model):
     """Models a CouchDB cell document.
 
     key_name - The cell key (e.g., 1-2).
     """
-    rev = db.StringProperty(required=True, indexed=False)
-    coords = db.StringProperty(required=True, indexed=False)
-    varvals = db.TextProperty(required=True)
+    rev = model.StringProperty('r')
+    coords = model.StringProperty('c')
+    varvals = model.TextProperty('v')
 
-    def __eq__(self, other):
-        if isinstance(other, CouchDbCell):
-            return self.key() == other.key()
-        return NotImplemented
+    # def __eq__(self, other):
+    #     if isinstance(other, Cell):
+    #         return self.key() == other.key()
+    #     return NotImplemented
 
-    def __ne__(self, other):
-        result = self.__eq__(other)
-        if result is NotImplemented:
-            return result
-        return not result
+    # def __ne__(self, other):
+    #     result = self.__eq__(other)
+    #     if result is NotImplemented:
+    #         return result
+    #     return not result
 
-    def __hash__(self):
-        return hash(self.key().name())
+    # def __hash__(self):
+    #     return hash(self.key().name())
 
-    def __cmp__(self, other):
-        return self.key().__cmp__(other.key())
+    # def __cmp__(self, other):
+    #     return self.key().__cmp__(other.key())
 
-class Variable(db.Expando):
+class CellIndex(model.Model): # parent=Cell, key_name=varname    
+    n = model.StringProperty('n', required=True)
+    v = model.IntegerProperty('v', required=True)
+    x = model.StringProperty('x', repeated=True)
+    y = model.StringProperty('y', repeated=True)
+    z = model.StringProperty('z', repeated=True)
+
+    @classmethod
+    def search(cls, varname, within, pivot, limit, offset):
+        logging.info(str(dict(
+                varname=varname,
+                within=within,
+                pivot=pivot,
+                limit=limit,
+                offset=offset)))
+        qry = cls.query()
+        qry = qry.filter(cls.n == varname)   
+        if (within == 1):
+            qry = qry.filter(cls.x == pivot)
+        elif (within == 5):
+            qry = qry.filter(cls.y == pivot)
+        elif (within == 10):
+            qry = qry.filter(cls.z == pivot)
+        else:
+            return []
+        #prop = 'within_%s' % within
+        # prop = 'x'
+        # gql = "SELECT * FROM CellIndex WHERE n = '%s'" % varname
+        # gql = "%s AND %s = '%s'" % (gql, str(prop), pivot)
+        #logging.info(gql)
+        #qry = query.parse_gql(gql)[0]
+        
+        #qry = db.GqlQuery(gql, keys_only=True)
+        logging.info('QUERY='+str(qry))
+
+        hits = model.get_multi(
+            [key.parent() for key in qry.fetch(limit, offset=offset, keys_only=True) \
+                 if key.parent() is not None])
+
+        
+        hits = [x for x in hits if x is not None]
+        if len(hits) == 0:
+            return []
+
+        logging.info('KEYS=' + str(hits))
+
+        
+        if len(hits) == limit:
+            return hits
+
+        batch = []
+        while True:
+            batch = model.get_multi(
+                [key.parent() for key in qry.fetch(limit, offset=offset, keys_only=True) \
+                     if key.parent()])
+            if len(batch) == 0:
+                return hits
+            hits.extend(batch)
+            if len(hits) >= limit:
+                return hits
+                
+                         
+                    
+                
+
+
+#class Variable(db.Expando):
     """Variable metadata."""
-    name = db.StringProperty()
+#    name = db.StringProperty()
 
 
 class CellValuesHandler(webapp.RequestHandler):
@@ -161,7 +230,12 @@ class CellValuesHandler(webapp.RequestHandler):
         Returns:
             A dictionary of cell key to CouchDBCell.
         """
-        entities = CouchDbCell.get_by_key_name(cell_keys)
+
+        # test
+        cell_keys = [model.Key('Cell', x) for x in cell_keys]
+        entities = model.get_multi(cell_keys)
+
+        #entities = Cell.get_by_key_name(cell_keys)
         cells = {}
         for x in entities:
             if x:
@@ -189,7 +263,7 @@ class CellValuesHandler(webapp.RequestHandler):
         for row in simplejson.loads(response.content).get('rows'):            
             key = row.get('key')
             value = row.get('value')
-            cells[key] = CouchDbCell(
+            cells[key] = Cell(
                 key_name=key,
                 rev=value.get('rev'),
                 coords=simplejson.dumps(value.get('coords')),
@@ -232,7 +306,8 @@ class CellValuesHandler(webapp.RequestHandler):
             cells.update(couched)
 
             # Put cells from CouchDB into datastore
-            db.put(couched.values())
+            #db.put(couched.values())
+            model.put_multi(couched.values())
             
         # Cache cells
         if cachecells:
@@ -274,7 +349,12 @@ class CellValuesHandler(webapp.RequestHandler):
             bb - bounding box (north,west|south,east)
             bbo - bounding box offset cell key
             bbl - bounding box cell limit
-        """
+            range, pivot, variable
+        """                      
+        w = self.request.get_range('within', min_value=1, default=0)
+        p = self.request.get('pivot', None)
+        variable = self.request.get('variable', None)
+
         xy = self.request.get('xy', None) 
         k = self.request.get('k', None)  
         v = self.request.get('v', None) 
@@ -282,8 +362,17 @@ class CellValuesHandler(webapp.RequestHandler):
         si = 'true' == self.request.get('si')
         bb = self.request.get('bb', None)
         bbl = self.request.get_range('bbl', min_value=1, max_value=100, default=10)
-        bbo = self.request.get('bbo', None)
+        bbo = self.request.get_range('bbo', min_value=0, default=0)
 
+        if w and p and variable:
+            indexes = CellIndex.search(variable, w, p, bbl, bbo)
+            logging.info(str(indexes))
+            json = simplejson.dumps([x.rev for x in indexes])
+            self.response.headers["Content-Type"] = "application/json"
+            self.response.out.write(json)
+            return
+
+            
         # Invalid request
         if not k and not xy and not bb:
             self.error(404)
