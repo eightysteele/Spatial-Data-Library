@@ -32,6 +32,7 @@ import random
 import shapefile
 import shlex
 import subprocess
+import sys
 from rmg import *
 
 def maketile(options):
@@ -617,11 +618,53 @@ def _getoptions():
                       dest="logfile",
                       help="The name of the log file",
                       default=None)
+    parser.add_option("--csv_dir", 
+                      type='string',
+                      dest="csv_dir",
+                      help="Directory of CSV file outputs from StartSpan.",
+                      default=None)
+
+    parser.add_option('--config_file', 
+                      type='string', 
+                      dest='config_file',
+                      metavar='FILE', 
+                      help='Bulkload YAML config file.')
+    
+    parser.add_option('--filename', 
+                      type='string', 
+                      dest='filename',
+                      metavar='FILE', 
+                      help='CSV file with data to bulkload.')                      
+    
+    parser.add_option('--url', 
+                      type='string', 
+                      dest='url',
+                      help='URL endpoint to /remote_api to bulkload to.')                          
+
     return parser.parse_args()[0]
 
 if __name__ == '__main__':
     options = _getoptions()
     command = options.command.lower()
+
+    if command == 'csv2appengine':
+        """Bulkloads all CSV files in a directory to App Engine datastore."""
+        cmd = 'appcfg.py upload_data --batch_size=%s --num_threads=%s --config_file=%s --filename=%s --kind CellIndex --url=%s'
+        os.chdir(options.csv_dir)
+        for csvfile in os.listdir('.'):
+            if not csvfile.endswith('.csv'):
+                continue            
+            cmd_line = cmd % (
+                1,
+                5,
+                options.config_file, 
+                os.path.abspath(csvfile),
+                options.url)            
+            logging.info(cmd_line)
+            args = shlex.split(cmd_line)
+            subprocess.call(args)            
+        sys.exit(1)
+
 
     if options.logfile:
         if options.logfile == 'none':
@@ -639,6 +682,7 @@ if __name__ == '__main__':
                     format='%(asctime)s %(levelname)s %(message)s',
                     filename=logfile,
                     filemode='w')    
+
 
     if command == 'clip':
         logging.info('Beginning command clip.')
