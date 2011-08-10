@@ -306,6 +306,7 @@ class CellValuesHandler(webapp.RequestHandler):
         c = 'true' == self.request.get('c') 
         si = 'true' == self.request.get('si')
         bb = self.request.get('bb', None)
+        bb_offset = self.request.get('bb_offset', None)
         limit = self.request.get_range('limit', min_value=1, max_value=100, default=10)
         offset = self.request.get_range('offset', min_value=0, default=0)
 
@@ -327,7 +328,7 @@ class CellValuesHandler(webapp.RequestHandler):
             nwpoint = rmg.Point(float(w), float(n)) # lon,lat
             sepoint = rmg.Point(float(e), float(s)) # lon,lat
             count = 0
-            for cell_key in rmg.RMGCell.cells_in_bb(nwpoint, sepoint, startkey=offset):
+            for cell_key in rmg.RMGCell.cells_in_bb(nwpoint, sepoint, startkey=bb_offset):
                 if count == limit:
                     offset_key = cell_key
                     break
