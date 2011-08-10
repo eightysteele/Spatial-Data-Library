@@ -64,15 +64,15 @@ def getworldclimtile(options):
                 vardir - the path to the directory in which to store the Worldclim files
     """
     if os.path.exists(options.vardir):
-        command = 'rm -r %s' % (options.vardir)
+        command = 'rm %s/*' % (options.vardir)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
-    command = 'mkdir %s' % (options.vardir)
-    logging.info(command)
-    args = shlex.split(command)
-    subprocess.call(args)
-
+    else:
+        command = 'mkdir %s' % (options.vardir)
+        logging.info(command)
+        args = shlex.split(command)
+        subprocess.call(args)
 
     varset = ['tmean','tmin','tmax','prec','alt','bio']
     for var in varset:
@@ -122,7 +122,7 @@ def cleanworkspace(options):
         basedir = os.path.join(options.workspace, base)
         if os.path.exists(basedir):
             basedirall = os.path.join(options.workspace, options.key) 
-            command = 'rm -r %s*' % (basedirall)
+            command = 'rm %s/*' % (basedir)
             logging.info(command)
             args = shlex.split(command)
             subprocess.call(args)
@@ -160,18 +160,19 @@ def getpolygon(key, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, i
     return RMGCell.polygon(key, cells_per_degree, digits, a, inverse_flattening)
 
 def translatestatistic(varname, stat, statval):
-    """ Returns a translated value for a starspan-processed Worldclim statistic (avg, stddev, min, max). 
+    """ Returns a translated value for a starspan-processed Worldclim statistic (avg, stdev, min, max). 
         Translation includes returning spurious large integer values 
         (starspan must use an unsigned short int at some point)
         to their correct negative values, then truncating these values to be integers.
         
         Arguments:
             varname - the name of the variable to which the statistic applies (tmean, prec, alt...)
-            stat - the statistic the value represents (avg, stddev, min, max)
+            stat - the statistic the value represents (avg, stdev, min, max)
             statval - the value of the statistic as returned from starspan
     """
+#    logging.info('VARNAME: %s STAT: %s STATVAL: %s' % (varname, stat, statval))
     newval = float(statval)
-    if stat == 'stddev':
+    if stat == 'stdev':
         return truncate(newval,0)
     else:
         if newval > 55537: # Actual value is a negative number greater than the nodata value of -9999
@@ -306,7 +307,7 @@ class Tile(object):
 
     @classmethod
     def starspan2csv2couch(cls, csvfile, options):
-        """ Loads cells having avg stddev min and max values of a variable from 
+        """ Loads cells having avg stdev min and max values of a variable from 
             starspan2csv file to CouchDB.
             
             Arguments:
@@ -321,7 +322,8 @@ class Tile(object):
         logging.info('Beginning starspan2csv2couch(), preparing cells for bulkloading from %s.' % (csvfile) )
         server = couchdb.Server(options.couchurl)
         cdb = server[options.database]
-        stats = ['avg','stddev','min','max']
+        stats = ['avg']
+#        stats = ['avg','stdev','min','max']
         cells_per_degree = float(options.cells_per_degree)
         dr = csv.DictReader(open(csvfile, 'r'))
         cells = {}
@@ -338,7 +340,9 @@ class Tile(object):
             for stat in stats:
                 statname = '%s_Band1' % (stat)
                 statval = row.get(statname)
-                varstat = '%s_%s' % (varname,stat)
+                varstat = '%s' % (varname)
+                # removed capacity to process multiple stats - just getting avg now.
+#                varstat = '%s_%s' % (varname,stat)
                 # the following needed to process Worldclim stats for representation in the datastore
                 cells.get(cellkey).get('vars')[varstat] = translatestatistic(varname, stat, statval)
         t1 = time.time()
@@ -366,8 +370,10 @@ class Tile(object):
         csvfile = shapefile.replace('.shp', '.csv')
         # Call starspan requesting mean of variable, excluding nodata values (-9999 in the file is the same as 55537)
         # starspan -- vector 0-clipped.shp --raster tmean
-        command = 'starspan --vector %s --raster %s --stats %s avg stddev min max --nodata 55537' \
+        command = 'starspan --vector %s --raster %s --stats %s avg --nodata 55537' \
             % (shapefile, variables, csvfile)
+#        command = 'starspan --vector %s --raster %s --stats %s avg stdev min max --nodata 55537' \
+#            % (shapefile, variables, csvfile)
         args = shlex.split(command)
         subprocess.call(args)
         t1 = time.time()
