@@ -184,7 +184,7 @@ class CellValuesHandler(webapp.RequestHandler):
         cells = {}
         for x in entities:
             if x:
-                cells[x.key().name()] = x
+                cells[x.key.id()] = x
         return cells
 
     @classmethod
