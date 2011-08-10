@@ -44,16 +44,16 @@ transformers:
       external_name: avg_Band1
       import_transform: helper.get_varval()
 
-    - property: x #within_x
-      external_name: avg_Band1
-      import_transform: helper.within_list(1)
+    # - property: x #within_x
+    #   external_name: avg_Band1
+    #   import_transform: helper.within_list(1)
 
-    - property: y #within_y
-      external_name: avg_Band1
-      import_transform: helper.within_list(5)
+    # - property: y #within_y
+    #   external_name: avg_Band1
+    #   import_transform: helper.within_list(5)
 
-    - property: z #within_z
-      external_name: avg_Band1
-      import_transform: helper.within_list(10)
+    # - property: z #within_z
+    #   external_name: avg_Band1
+    #   import_transform: helper.within_list(10)
 
-  #post_import_function: helper.add_dynamic_properties
+  post_import_function: helper.add_dynamic_properties

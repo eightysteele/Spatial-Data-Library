@@ -129,93 +129,38 @@ class Cell(model.Model):
     coords = model.StringProperty('c')
     varvals = model.TextProperty('v')
 
-    # def __eq__(self, other):
-    #     if isinstance(other, Cell):
-    #         return self.key() == other.key()
-    #     return NotImplemented
+    def __eq__(self, other):
+        if isinstance(other, Cell):
+            return self.key() == other.key()
+        return NotImplemented
 
-    # def __ne__(self, other):
-    #     result = self.__eq__(other)
-    #     if result is NotImplemented:
-    #         return result
-    #     return not result
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return result
+        return not result
 
-    # def __hash__(self):
-    #     return hash(self.key().name())
+    def __hash__(self):
+        return hash(self.key().name())
 
-    # def __cmp__(self, other):
-    #     return self.key().__cmp__(other.key())
+    def __cmp__(self, other):
+        return self.key().__cmp__(other.key())
 
-class CellIndex(model.Model): # parent=Cell, key_name=varname    
+class CellIndex(model.Expando): # parent=Cell, key_name=varname    
     n = model.StringProperty('n', required=True)
     v = model.IntegerProperty('v', required=True)
-    x = model.StringProperty('x', repeated=True)
-    y = model.StringProperty('y', repeated=True)
-    z = model.StringProperty('z', repeated=True)
 
     @classmethod
     def search(cls, varname, within, pivot, limit, offset):
-        logging.info(str(dict(
-                varname=varname,
-                within=within,
-                pivot=pivot,
-                limit=limit,
-                offset=offset)))
-        qry = cls.query()
-        qry = qry.filter(cls.n == varname)   
-        if (within == 1):
-            qry = qry.filter(cls.x == pivot)
-        elif (within == 5):
-            qry = qry.filter(cls.y == pivot)
-        elif (within == 10):
-            qry = qry.filter(cls.z == pivot)
-        else:
-            return []
-        #prop = 'within_%s' % within
-        # prop = 'x'
-        # gql = "SELECT * FROM CellIndex WHERE n = '%s'" % varname
-        # gql = "%s AND %s = '%s'" % (gql, str(prop), pivot)
-        #logging.info(gql)
-        #qry = query.parse_gql(gql)[0]
-        
-        #qry = db.GqlQuery(gql, keys_only=True)
+        prop = 'within_%s' % within
+        gql = "SELECT * FROM CellIndex WHERE n = '%s'" % varname
+        gql = "%s AND %s = %d" % (gql, prop, int(pivot))
+        logging.info(gql)
+        qry = query.parse_gql(gql)[0]
         logging.info('QUERY='+str(qry))
-
-        hits = model.get_multi(
-            [key.parent() for key in qry.fetch(limit, offset=offset, keys_only=True) \
-                 if key.parent() is not None])
-
-        
-        hits = [x for x in hits if x is not None]
-        if len(hits) == 0:
-            return []
-
-        logging.info('KEYS=' + str(hits))
-
-        
-        if len(hits) == limit:
-            return hits
-
-        batch = []
-        while True:
-            batch = model.get_multi(
-                [key.parent() for key in qry.fetch(limit, offset=offset, keys_only=True) \
-                     if key.parent()])
-            if len(batch) == 0:
-                return hits
-            hits.extend(batch)
-            if len(hits) >= limit:
-                return hits
-                
-                         
-                    
-                
-
-
-#class Variable(db.Expando):
-    """Variable metadata."""
-#    name = db.StringProperty()
-
+        results = qry.fetch(limit, offset=offset, keys_only=True)
+        cell_keys = [key.parent().id() for key in results]
+        return set(cell_keys)
 
 class CellValuesHandler(webapp.RequestHandler):
     """Handler for cell value requests."""
@@ -232,8 +177,8 @@ class CellValuesHandler(webapp.RequestHandler):
         """
 
         # test
-        cell_keys = [model.Key('Cell', x) for x in cell_keys]
-        entities = model.get_multi(cell_keys)
+        keys = [model.Key('Cell', x) for x in cell_keys]
+        entities = model.get_multi(keys)
 
         #entities = Cell.get_by_key_name(cell_keys)
         cells = {}
@@ -264,7 +209,7 @@ class CellValuesHandler(webapp.RequestHandler):
             key = row.get('key')
             value = row.get('value')
             cells[key] = Cell(
-                key_name=key,
+                id=key,
                 rev=value.get('rev'),
                 coords=simplejson.dumps(value.get('coords')),
                 varvals=simplejson.dumps(value.get('varvals')))
@@ -361,35 +306,29 @@ class CellValuesHandler(webapp.RequestHandler):
         c = 'true' == self.request.get('c') 
         si = 'true' == self.request.get('si')
         bb = self.request.get('bb', None)
-        bbl = self.request.get_range('bbl', min_value=1, max_value=100, default=10)
-        bbo = self.request.get_range('bbo', min_value=0, default=0)
+        limit = self.request.get_range('limit', min_value=1, max_value=100, default=10)
+        offset = self.request.get_range('offset', min_value=0, default=0)
 
-        if w and p and variable:
-            indexes = CellIndex.search(variable, w, p, bbl, bbo)
-            logging.info(str(indexes))
-            json = simplejson.dumps([x.rev for x in indexes])
-            self.response.headers["Content-Type"] = "application/json"
-            self.response.out.write(json)
-            return
-
-            
         # Invalid request
-        if not k and not xy and not bb:
+        if not k and not xy and not bb and not (w and p):
             self.error(404)
             return
         
         # Get cell key unqiues
         cell_keys = set()
         offset_key = None
-        if bb: # If bb then ignore other cell key sources (e.g., k and xy)
+
+        if w and p and variable: # If range query ignore bb, k, xy params
+            cell_keys = CellIndex.search(variable, w, p, limit, offset)
+        elif bb: # If bb then ignore other cell key sources (e.g., k and xy)
             nw,se = bb.split('|')
             w,n = nw.split(',')
             e,s = se.split(',')
             nwpoint = rmg.Point(float(w), float(n)) # lon,lat
             sepoint = rmg.Point(float(e), float(s)) # lon,lat
             count = 0
-            for cell_key in rmg.RMGCell.cells_in_bb(nwpoint, sepoint, startkey=bbo):
-                if count == bbl:
+            for cell_key in rmg.RMGCell.cells_in_bb(nwpoint, sepoint, startkey=offset):
+                if count == limit:
                     offset_key = cell_key
                     break
                 count += 1
@@ -409,6 +348,8 @@ class CellValuesHandler(webapp.RequestHandler):
         # Get variable names
         if v:
             variable_names = set([x.strip() for x in v.split(',')])
+        elif variable:
+            variable_names = [variable]
         else:
             variable_names = []
         
