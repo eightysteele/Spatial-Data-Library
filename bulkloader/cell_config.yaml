@@ -16,16 +16,16 @@ transformers:
   connector: csv
   connector_options:
     encoding: utf_8
-  
+
   property_map:
     - property: __key__
-      external_name: key
-      export_transform: datastore.Key.name
+      external_name: CellKey
+      import_transform: transform.create_foreign_key('Cell')
 
-    - property: bio1
-      external_name: json
-      import_transform: helper.to_json()      
-      
+    - property: r
+      external_name: RID
+      import_transform: transform.none_if_empty(str)
+
 - kind: CellIndex
   connector: csv
   connector_options:
@@ -33,41 +33,27 @@ transformers:
   
   property_map:
     - property: __key__
-      import_template: "%(key)s_%(variable)s"
-      import_transform: helper.create_key()
-                            
-    - property: value
-      external_name: value
-      import_transform: transform.none_if_empty(int)
+      external_name: CellKey
+      import_transform: helper.create_key() 
 
-    - property: scaledvalue
-      external_name: scaledvalue
-      import_transform: transform.none_if_empty(int)
+    - property: n
+      external_name: varname
+      import_transform: helper.get_varname()
 
-    - property: variable
-      external_name: variable
-      import_transform: transform.none_if_empty(str)
+    - property: v
+      external_name: avg_Band1
+      import_transform: helper.get_varval()
 
-    - property: within_1
-      import_template: "%(scaledvalue)s"
-      import_transform: helper.within_list(1)
+    # - property: x #within_x
+    #   external_name: avg_Band1
+    #   import_transform: helper.within_list(1)
 
-    - property: within_2
-      import_template: "%(scaledvalue)s"
-      import_transform: helper.within_list(2)
+    # - property: y #within_y
+    #   external_name: avg_Band1
+    #   import_transform: helper.within_list(5)
 
-    - property: within_3
-      import_template: "%(scaledvalue)s"
-      import_transform: helper.within_list(3)
+    # - property: z #within_z
+    #   external_name: avg_Band1
+    #   import_transform: helper.within_list(10)
 
-    - property: within_4
-      import_template: "%(scaledvalue)s"
-      import_transform: helper.within_list(4)
-      
-    - property: within_5
-      import_template: "%(scaledvalue)s"
-      import_transform: helper.within_list(5)
-
-    - property: within_10
-      import_template: "%(scaledvalue)s"
-      import_transform: helper.within_list(10)
+  post_import_function: helper.add_dynamic_properties

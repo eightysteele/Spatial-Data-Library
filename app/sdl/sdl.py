@@ -365,6 +365,11 @@ def _getoptions():
                       dest="csvfile",
                       help="A clipped variables csv file to intersect and load.",
                       default=None)
+    parser.add_option("-x",
+                      "--csv_dir", 
+                      dest="csv_dir",
+                      help="Directory of CSV file outputs from StartSpan.",
+                      default=None)
     parser.add_option("-u", 
                       "--couchurl", 
                       dest="couchurl",
@@ -392,11 +397,6 @@ def _getoptions():
     parser.add_option("-n", "--cells-per-degree", dest="cells_per_degree",
                       help="Number of cells per degree",
                       default=None)
-    parser.add_option("-b", 
-                      "--batchsize", 
-                      dest="batchsize",
-                      help="The batch size (default 25,000)",
-                      default=25000)
     return parser.parse_args()[0]
 
 if __name__ == '__main__':

@@ -33,6 +33,9 @@ from google.appengine.ext.webapp.util import run_wsgi_app
 # SDL imports:
 from sdl import rmg
 
+# Datastore Plus imports
+from ndb import query, model
+
 # CouchDb connection parameters:
 COUCHDB_HOST = 'http://eighty.berkeley.edu'
 COUCHDB_PORT = 5984
@@ -117,17 +120,17 @@ SI_CONVERSIONS = dict(
     tmin8=lambda x: int(x)/10.0,
     tmin9=lambda x: int(x)/10.0)
 
-class CouchDbCell(db.Model):
+class Cell(model.Model):
     """Models a CouchDB cell document.
 
     key_name - The cell key (e.g., 1-2).
     """
-    rev = db.StringProperty(required=True, indexed=False)
-    coords = db.StringProperty(required=True, indexed=False)
-    varvals = db.TextProperty(required=True)
+    rev = model.StringProperty('r')
+    coords = model.StringProperty('c')
+    varvals = model.TextProperty('v')
 
     def __eq__(self, other):
-        if isinstance(other, CouchDbCell):
+        if isinstance(other, Cell):
             return self.key() == other.key()
         return NotImplemented
 
@@ -143,10 +146,21 @@ class CouchDbCell(db.Model):
     def __cmp__(self, other):
         return self.key().__cmp__(other.key())
 
-class Variable(db.Expando):
-    """Variable metadata."""
-    name = db.StringProperty()
+class CellIndex(model.Expando): # parent=Cell, key_name=varname    
+    n = model.StringProperty('n', required=True)
+    v = model.IntegerProperty('v', required=True)
 
+    @classmethod
+    def search(cls, varname, within, pivot, limit, offset):
+        prop = 'within_%s' % within
+        gql = "SELECT * FROM CellIndex WHERE n = '%s'" % varname
+        gql = "%s AND %s = %d" % (gql, prop, int(pivot))
+        logging.info(gql)
+        qry = query.parse_gql(gql)[0]
+        logging.info('QUERY='+str(qry))
+        results = qry.fetch(limit, offset=offset, keys_only=True)
+        cell_keys = [key.parent().id() for key in results]
+        return set(cell_keys)
 
 class CellValuesHandler(webapp.RequestHandler):
     """Handler for cell value requests."""
@@ -161,11 +175,16 @@ class CellValuesHandler(webapp.RequestHandler):
         Returns:
             A dictionary of cell key to CouchDBCell.
         """
-        entities = CouchDbCell.get_by_key_name(cell_keys)
+
+        # test
+        keys = [model.Key('Cell', x) for x in cell_keys]
+        entities = model.get_multi(keys)
+
+        #entities = Cell.get_by_key_name(cell_keys)
         cells = {}
         for x in entities:
             if x:
-                cells[x.key().name()] = x
+                cells[x.key.id()] = x
         return cells
 
     @classmethod
@@ -189,8 +208,8 @@ class CellValuesHandler(webapp.RequestHandler):
         for row in simplejson.loads(response.content).get('rows'):            
             key = row.get('key')
             value = row.get('value')
-            cells[key] = CouchDbCell(
-                key_name=key,
+            cells[key] = Cell(
+                id=key,
                 rev=value.get('rev'),
                 coords=simplejson.dumps(value.get('coords')),
                 varvals=simplejson.dumps(value.get('varvals')))
@@ -232,7 +251,8 @@ class CellValuesHandler(webapp.RequestHandler):
             cells.update(couched)
 
             # Put cells from CouchDB into datastore
-            db.put(couched.values())
+            #db.put(couched.values())
+            model.put_multi(couched.values())
             
         # Cache cells
         if cachecells:
@@ -274,33 +294,42 @@ class CellValuesHandler(webapp.RequestHandler):
             bb - bounding box (north,west|south,east)
             bbo - bounding box offset cell key
             bbl - bounding box cell limit
-        """
+            range, pivot, variable
+        """                      
+        w = self.request.get_range('within', min_value=1, default=0)
+        p = self.request.get('pivot', None)
+        variable = self.request.get('variable', None)
+
         xy = self.request.get('xy', None) 
         k = self.request.get('k', None)  
         v = self.request.get('v', None) 
         c = 'true' == self.request.get('c') 
         si = 'true' == self.request.get('si')
         bb = self.request.get('bb', None)
-        bbl = self.request.get_range('bbl', min_value=1, max_value=100, default=10)
-        bbo = self.request.get('bbo', None)
+        bb_offset = self.request.get('bb_offset', None)
+        limit = self.request.get_range('limit', min_value=1, max_value=100, default=10)
+        offset = self.request.get_range('offset', min_value=0, default=0)
 
         # Invalid request
-        if not k and not xy and not bb:
+        if not k and not xy and not bb and not (w and p):
             self.error(404)
             return
         
         # Get cell key unqiues
         cell_keys = set()
         offset_key = None
-        if bb: # If bb then ignore other cell key sources (e.g., k and xy)
+
+        if w and p and variable: # If range query ignore bb, k, xy params
+            cell_keys = CellIndex.search(variable, w, p, limit, offset)
+        elif bb: # If bb then ignore other cell key sources (e.g., k and xy)
             nw,se = bb.split('|')
             w,n = nw.split(',')
             e,s = se.split(',')
             nwpoint = rmg.Point(float(w), float(n)) # lon,lat
             sepoint = rmg.Point(float(e), float(s)) # lon,lat
             count = 0
-            for cell_key in rmg.RMGCell.cells_in_bb(nwpoint, sepoint, startkey=bbo):
-                if count == bbl:
+            for cell_key in rmg.RMGCell.cells_in_bb(nwpoint, sepoint, startkey=bb_offset):
+                if count == limit:
                     offset_key = cell_key
                     break
                 count += 1
@@ -320,6 +349,8 @@ class CellValuesHandler(webapp.RequestHandler):
         # Get variable names
         if v:
             variable_names = set([x.strip() for x in v.split(',')])
+        elif variable:
+            variable_names = [variable]
         else:
             variable_names = []
         
