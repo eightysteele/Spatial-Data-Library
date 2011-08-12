@@ -17,6 +17,7 @@
 __author__ = "Aaron Steele, Dave Vieglais, and John Wieczorek"
 
 import math
+from collections import defaultdict
  
 def get_indexes(val,min,max,res):
     newval = int(math.floor(val/res))
@@ -88,7 +89,7 @@ def get_query_intervals(min, max, gte, lt):
     if lt>max:
         lt=max
         
-    indexes = dict()
+    indexes = defaultdict(list)
     ''' Power of 2 for the difference between max and min.'''
     n = int(math.floor(math.log( (lt-gte), 2)))
     ''' m is the magic starting value between min and max.''' 
@@ -102,28 +103,16 @@ def get_query_intervals(min, max, gte, lt):
     while diff > 0:
         n = int(math.floor(math.log( diff, 2)))
         m=m-int(math.pow(2,n))
-        ''' Add the value to the list of values for the interval.
-            Create the list if there is not one already.'''
-        if not indexes.has_key('i%s' % n):
-            indexes['i%s' % n]=[m]
-        else:
-            l=indexes['i%s' % n]
-            l.append(m)
-            indexes['i%s' % n]=l
+        ''' Add the value to the list of values for the interval.'''
+        indexes['i%s' % n].append(m)
         diff = m-gte
     m=lt-top
     diff = top
     ''' Iterate through the differences from m to the top of the range.'''
     while diff > 0:
         n = int(math.floor(math.log( diff, 2)))
-        ''' Add the value to the list of values for the interval.
-            Create the list if there is not one already.'''
-        if not indexes.has_key('i%s' % n):
-            indexes['i%s' % n]=[m]
-        else:
-            l=indexes['i%s' % n]
-            l.append(m)
-            indexes['i%s' % n]=l
+        ''' Add the value to the list of values for the interval.'''
+        indexes['i%s' % n].append(m)
         m=m+int(math.pow(2,n))
         diff = lt-m
     return indexes    
