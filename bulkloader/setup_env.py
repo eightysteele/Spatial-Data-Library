@@ -30,7 +30,6 @@ if version_tuple < (2, 4):
 
 DIR_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 DIR_PATH = reduce(lambda x,y: '%s%s%s' % (x,os.path.sep,y), DIR_PATH.split(os.path.sep)[:-1])
-print 'DIR_PATH=%s' % DIR_PATH
 SCRIPT_DIR = os.path.join(DIR_PATH, 'bulkloading')
 
 EXTRA_PATHS = [

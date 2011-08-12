@@ -46,8 +46,8 @@ def get_indexes(val,min,max,res):
         intervals.append(index)
     return intervals
 
-def get_index_intervals(val,min,max,res):
-    intervals = get_indexes(val,min,max,res)
+def get_index_intervals(val, min, max, res=1):
+    intervals = get_indexes(val, min, max, res)
     indexes = dict()
     a = 0
     for i in intervals:
