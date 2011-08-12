@@ -30,7 +30,7 @@ def get_indexes(val,min,max,res):
         intervals.append(index)
     return intervals
 
-def get_index_intervals(val,min,max,res):
+def get_index_intervals(val,min,max,res=1):
     ''' Returns a dictionary of interval:values where the values are the starting integers of a range containing val.
 
         Arguments:
@@ -149,5 +149,3 @@ def main():
     
 if __name__ == "__main__":
     main()
-
-    

@@ -1,8 +1,35 @@
+#!/usr/bin/env python
+
+# Copyright 2011 Jante LLC and University of Kansas
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.        
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Fix sys.path
+from setup_env import fix_sys_path
+fix_sys_path()
+
+# Python imports
+import logging
+
+# SDL imports
+from sdl import interval
+
+# Goole App Engine imports
 from django.utils import simplejson
 from google.appengine.ext.bulkload import transform
-import logging
-from ndb import query, model
 
+# Datastore Plus imports
+from ndb import query, model
 
 def create_key():
     def wrapper(value, bulkload_state):
@@ -20,7 +47,6 @@ def create_cell_key():
         key_name = bulkload_state.current_dictionary['CellKey']
         return key_name
     return wrapper
-
 
 def get_varname():
     def wrapper(value, bulkload_state):
@@ -51,16 +77,11 @@ def get_list(within, val):
 
 def add_dynamic_properties(input_dict, instance, bulkload_state_copy):    
     """Adds dynamic properties from the CSV input_dict to the entity instance."""
-    val = input_dict['avg_Band1']
-    ranges = dict(
-        within_1=get_list(1, val),
-        within_5=get_list(5, val),
-        within_10=get_list(10, val))
-    for key,value in ranges.iteritems():
-        instance[key] = value
-    if input_dict['varname'] not in ['bio16']:
-        logging.info('skipping variable %s' %  input_dict['varname'])
-        return datastore.Entity('CellIndex')
+    val = int(input_dict['avg_Band1'].split('.')[0])
+    var_min = -454
+    var_max = 8550
+    for k,v in interval.get_index_intervals(val, var_min, var_max).iteritems():
+        instance[k] = v
     return instance
 
 
