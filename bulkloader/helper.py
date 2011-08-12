@@ -1,8 +1,18 @@
+from setup_env import fix_sys_path
+fix_sys_path()
+
+# Python imports
+import logging
+
+# SDL imports
+from sdl import interval
+
+# Goole App Engine imports
 from django.utils import simplejson
 from google.appengine.ext.bulkload import transform
-import logging
-from ndb import query, model
 
+# Datastore Plus imports
+from ndb import query, model
 
 def create_key():
     def wrapper(value, bulkload_state):

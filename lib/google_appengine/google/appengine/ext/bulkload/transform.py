@@ -110,7 +110,7 @@ def create_foreign_key(kind, key_is_id=False):
   These are typically used in ReferenceProperty in Python, where the reference
   value is a key with kind (or model) name name.
 
-  This helper method does not support keys with parents. Use create_deep_key
+  This helper method does not support keys with parents. Use create_deepkey
   instead to create keys with parents.
 
   Args:
