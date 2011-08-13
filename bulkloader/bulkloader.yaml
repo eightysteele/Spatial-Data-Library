@@ -44,16 +44,74 @@ transformers:
       external_name: avg_Band1
       import_transform: helper.get_varval()
 
-    # - property: x #within_x
-    #   external_name: avg_Band1
-    #   import_transform: helper.within_list(1)
 
-    # - property: y #within_y
-    #   external_name: avg_Band1
-    #   import_transform: helper.within_list(5)
+    - property: i0
+      external_name: avg_Band1
+      import_transform: helper.create_index(0)
 
-    # - property: z #within_z
-    #   external_name: avg_Band1
-    #   import_transform: helper.within_list(10)
 
-  post_import_function: helper.add_dynamic_properties
+    - property: i1
+      external_name: avg_Band1
+      import_transform: helper.create_index(1)
+
+
+    - property: i2
+      external_name: avg_Band1
+      import_transform: helper.create_index(2)
+
+
+    - property: i3
+      external_name: avg_Band1
+      import_transform: helper.create_index(3)
+
+
+    - property: i4
+      external_name: avg_Band1
+      import_transform: helper.create_index(4)
+
+
+    - property: i5
+      external_name: avg_Band1
+      import_transform: helper.create_index(5)
+
+
+    - property: i6
+      external_name: avg_Band1
+      import_transform: helper.create_index(6)
+
+
+    - property: i7
+      external_name: avg_Band1
+      import_transform: helper.create_index(7)
+
+
+    - property: i8
+      external_name: avg_Band1
+      import_transform: helper.create_index(8)
+
+
+    - property: i9
+      external_name: avg_Band1
+      import_transform: helper.create_index(9)
+
+
+    - property: i10
+      external_name: avg_Band1
+      import_transform: helper.create_index(10)
+
+
+    - property: i11
+      external_name: avg_Band1
+      import_transform: helper.create_index(11)
+
+
+    - property: i12
+      external_name: avg_Band1
+      import_transform: helper.create_index(12)
+
+
+    - property: i13
+      external_name: avg_Band1
+      import_transform: helper.create_index(13)
+
+  #post_import_function: helper.add_dynamic_properties

@@ -23,6 +23,7 @@ from datetime import datetime
 import logging
 import os
 import simplejson
+import sys
 
 # Google App Engine imports:
 from google.appengine.api import mail, memcache, urlfetch
@@ -31,10 +32,11 @@ from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
 
 # SDL imports:
-from sdl import rmg
+from sdl import rmg, interval
 
 # Datastore Plus imports
 from ndb import query, model
+from ndb.query import OR, AND
 
 # CouchDb connection parameters:
 COUCHDB_HOST = 'http://eighty.berkeley.edu'
@@ -146,9 +148,23 @@ class Cell(model.Model):
     def __cmp__(self, other):
         return self.key().__cmp__(other.key())
 
-class CellIndex(model.Expando): # parent=Cell, key_name=varname    
-    n = model.StringProperty('n', required=True)
-    v = model.IntegerProperty('v', required=True)
+class CellIndex(model.Model): # parent=Cell, key_name=varname    
+    n = model.StringProperty('n', required=True) # variable name
+    v = model.IntegerProperty('v', required=True) # variable value
+    i0 = model.IntegerProperty()
+    i1 = model.IntegerProperty()
+    i2 = model.IntegerProperty()
+    i3 = model.IntegerProperty()
+    i4 = model.IntegerProperty()
+    i5 = model.IntegerProperty()
+    i6 = model.IntegerProperty()
+    i7 = model.IntegerProperty()
+    i8 = model.IntegerProperty()
+    i9 = model.IntegerProperty()
+    i10 = model.IntegerProperty()
+    i11 = model.IntegerProperty()
+    i12 = model.IntegerProperty()
+    i13 = model.IntegerProperty()
 
     @classmethod
     def search(cls, varname, within, pivot, limit, offset):
@@ -282,87 +298,16 @@ class CellValuesHandler(webapp.RequestHandler):
         """Handles a cell API request by proxing to post."""
         return self.post()
 
-    def post(self):
-        """Handles a cell API request.
-
-        URL parameters:
-            xy - coordinates (lon,lat|lon,lat|...)
-            k - cell keys (cellkey,cellkey,...)
-            v - variable names (varname,varname,...)
-            c - return cell coordinates if true
-            si - return converted variable values to standard SI units if true
-            bb - bounding box (north,west|south,east)
-            bbo - bounding box offset cell key
-            bbl - bounding box cell limit
-            range, pivot, variable
-        """                      
-        w = self.request.get_range('within', min_value=1, default=0)
-        p = self.request.get('pivot', None)
-        variable = self.request.get('variable', None)
-
-        xy = self.request.get('xy', None) 
-        k = self.request.get('k', None)  
-        v = self.request.get('v', None) 
-        c = 'true' == self.request.get('c') 
-        si = 'true' == self.request.get('si')
-        bb = self.request.get('bb', None)
-        bb_offset = self.request.get('bb_offset', None)
-        limit = self.request.get_range('limit', min_value=1, max_value=100, default=10)
-        offset = self.request.get_range('offset', min_value=0, default=0)
-
-        # Invalid request
-        if not k and not xy and not bb and not (w and p):
-            self.error(404)
-            return
-        
-        # Get cell key unqiues
-        cell_keys = set()
-        offset_key = None
-
-        if w and p and variable: # If range query ignore bb, k, xy params
-            cell_keys = CellIndex.search(variable, w, p, limit, offset)
-        elif bb: # If bb then ignore other cell key sources (e.g., k and xy)
-            nw,se = bb.split('|')
-            w,n = nw.split(',')
-            e,s = se.split(',')
-            nwpoint = rmg.Point(float(w), float(n)) # lon,lat
-            sepoint = rmg.Point(float(e), float(s)) # lon,lat
-            count = 0
-            for cell_key in rmg.RMGCell.cells_in_bb(nwpoint, sepoint, startkey=bb_offset):
-                if count == limit:
-                    offset_key = cell_key
-                    break
-                count += 1
-                cell_keys.add(cell_key)
-        else: 
-            if k: 
-                cell_keys.update([x.strip() for x in k.split(',')])
-            if xy:
-                cell_keys.update(self.cell_keys_from_coords([x.strip() for x in xy.split('|')]))
-
-        # Invalid request
-        if not cell_keys:
-            logging.error('No cell keys for k=%s, xy=%s' % (k, xy))
-            self.error(404)
-            return
-        
-        # Get variable names
-        if v:
-            variable_names = set([x.strip() for x in v.split(',')])
-        elif variable:
-            variable_names = [variable]
-        else:
-            variable_names = []
-        
+    def process_cell_keys(self, cell_keys, si=True, c=False, offset_key=None, variable_names = []):
         # Get cells by key
         cells = CellValuesHandler.getcells(cell_keys)        
-
+        
         # Prepare results
         results = []                    
         for cellkey, cell in cells.iteritems():
             varvals = simplejson.loads(cell.varvals)
             requested_varvals = {}
-
+            
             # Prepare only requested variables
             if len(variable_names) > 0:
                 for name in variable_names:
@@ -403,6 +348,121 @@ class CellValuesHandler(webapp.RequestHandler):
         json = simplejson.dumps(results)
         self.response.headers["Content-Type"] = "application/json"
         self.response.out.write(json)
+
+    def range_query(self, gte, lt, var, limit, offset):
+        if var == 'alt':
+            var_min = -454
+            var_max = 8550
+        elif var == 'bio1':
+            var_min = -269
+            var_max = 314
+        elif var == 'bio12':
+            var_min = 0
+            var_max = 9916
+        else:
+            self.error(404)
+            
+        intervals = interval.get_query_intervals(var_min, var_max, gte, lt)
+        logging.info('var=%s, gte=%s, lt=%s' % (var, gte, lt))
+                
+        # Build the query
+        qry = "CellIndex.query(AND(CellIndex.n == '%s', OR(" % var
+        for index,value in intervals.iteritems():
+            if not value or not index.startswith('i'):
+                continue
+            logging.info('index=%s, value=%s' % (index, value))
+            qry = '%sCellIndex.%s == %d,' % (qry, index, value)
+        qry = '%s)))' % qry[:-1]
+        logging.info('qry=%s' % qry)
+        qry = eval(qry)
+
+        logging.info(qry)
+        results = qry.fetch(limit, offset=offset, keys_only=True)
+        cell_keys = set([key.parent().id() for key in results])
+        self.process_cell_keys(cell_keys, variable_names=[var])
+
+    def post(self):
+        """Handles a cell API request.
+
+        URL parameters:
+            xy - coordinates (lon,lat|lon,lat|...)
+            k - cell keys (cellkey,cellkey,...)
+            v - variable names (varname,varname,...)
+            c - return cell coordinates if true
+            si - return converted variable values to standard SI units if true
+            bb - bounding box (north,west|south,east)
+            bbo - bounding box offset cell key
+            bbl - bounding box cell limit
+            gte = greater than or equal value for range query
+            lt = less than value for range query
+            variable = single variable name
+        """ 
+        RANGE_DEFAULT = sys.maxint - 1
+
+        # Get request params
+        xy = self.request.get('xy', None) 
+        k = self.request.get('k', None)  
+        v = self.request.get('v', None) 
+        c = 'true' == self.request.get('c') 
+        si = 'true' == self.request.get('si')
+        bb = self.request.get('bb', None)
+        bb_offset = self.request.get('bb_offset', None)
+        limit = self.request.get_range('limit', min_value=1, max_value=100, default=10)
+        offset = self.request.get_range('offset', min_value=0, default=0)
+        gte = self.request.get_range('gte', default=RANGE_DEFAULT)
+        lt = self.request.get_range('lt', default=RANGE_DEFAULT)
+        variable = self.request.get('var')
+
+        # Handle range query and return
+        if gte is not RANGE_DEFAULT and lt is not RANGE_DEFAULT and variable:
+            self.range_query(gte, lt, variable, limit, offset)
+            return
+
+        # Invalid request
+        if not k and not xy and not bb:
+            self.error(404)
+            return
+        
+        # Get cell key unqiues
+        cell_keys = set()
+        offset_key = None
+
+        if bb: # If bb then ignore other cell key sources (e.g., k and xy)
+            nw,se = bb.split('|')
+            w,n = nw.split(',')
+            e,s = se.split(',')
+            nwpoint = rmg.Point(float(w), float(n)) # lon,lat
+            sepoint = rmg.Point(float(e), float(s)) # lon,lat
+            count = 0
+            for cell_key in rmg.RMGCell.cells_in_bb(nwpoint, sepoint, startkey=bb_offset):
+                if count == limit:
+                    offset_key = cell_key
+                    break
+                count += 1
+                cell_keys.add(cell_key)
+        else: 
+            if k: 
+                cell_keys.update([x.strip() for x in k.split(',')])
+            if xy:
+                cell_keys.update(self.cell_keys_from_coords([x.strip() for x in xy.split('|')]))
+
+        # Invalid request since no cell keys
+        if not cell_keys:
+            logging.error('No cell keys for k=%s, xy=%s' % (k, xy))
+            self.error(404)
+            return
+        
+        # Get variable names for response
+        if v:
+            variable_names = set([x.strip() for x in v.split(',')])
+        elif variable:
+            variable_names = [variable]
+        else:
+            variable_names = []
+            
+        # Process cell keys and return results
+        self.process_cell_keys(cell_keys, si=si, c=c, offset_key=offset_key, 
+                               variable_names=variable_names)
 
 application = webapp.WSGIApplication(
     [('/api/cells/values', CellValuesHandler),], debug=True)    

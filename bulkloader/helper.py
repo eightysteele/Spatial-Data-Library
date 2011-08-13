@@ -75,6 +75,33 @@ def get_list(within, val):
     x = int(val.split('.')[0])
     return range(x - within, x + within + 1)
 
+def create_index(i):
+    """
+    bio1 in [-269,314]
+    bio12 in [0,9916]
+    """
+    def wrapper(varval, bulkload_state):
+        iname = 'i%s' % i
+        varval = int(varval.split('.')[0])
+        varname = bulkload_state.current_dictionary['RID'].split('_')[0].lower()        
+        if varname == 'alt':
+            var_min = -454
+            var_max = 8550
+        elif varname == 'bio1':
+            var_min = -269
+            var_max = 314
+        elif varname == 'bio12':
+            var_min = 0
+            var_max = 9916
+        else:
+            return None
+        intervals = interval.get_index_intervals(varval, var_min, var_max)
+        for index,value in intervals.iteritems():
+            if index == iname:
+                return value
+        return None
+    return wrapper
+        
 def add_dynamic_properties(input_dict, instance, bulkload_state_copy):    
     """Adds dynamic properties from the CSV input_dict to the entity instance."""
     val = int(input_dict['avg_Band1'].split('.')[0])
