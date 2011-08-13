@@ -107,7 +107,8 @@ def get_query_intervals(min, max, gte, lt):
         indexes['i%s' % n].append(m)
         diff = m-gte
     m=lt-top
-    diff = top
+    diff=top
+
     ''' Iterate through the differences from m to the top of the range.'''
     while diff > 0:
         n = int(math.floor(math.log( diff, 2)))
@@ -115,26 +116,51 @@ def get_query_intervals(min, max, gte, lt):
         indexes['i%s' % n].append(m)
         m=m+int(math.pow(2,n))
         diff = lt-m
-    return indexes    
+        
+    dupe=False
+    newindexes=defaultdict()
+    for index in indexes:
+        v = indexes[index]
+        if len(indexes[index])>1:
+                dupe=True
+                break
+    if dupe is True:
+        n = int(math.ceil(math.log((top),2)))
+        newindexes['e']=int(math.pow(2,n))-top
+        newindexes['i%s' % n]=lt-top
+    for index in indexes:
+        v = indexes[index][0]
+        if dupe is True:
+            if indexes[index][0]<lt-top:
+                newindexes[index]=indexes[index][0]
+        else:
+            newindexes[index]=indexes[index][0]
+    return newindexes
     
 def main():
-    indexes = get_index_intervals(14,-20,40,1)
-    print indexes
-
-    indexes = get_index_intervals(320,-454,8550,1)
-    print indexes
-
-    indexes = get_index_intervals(320,-454,8550,10)
-    print indexes
+    intervals = get_query_intervals(-454, 8850, 315, 328)
+    print intervals
 
     intervals = get_query_intervals(-454, 8850, 315, 329)
     print intervals
 
-    intervals = get_query_intervals(-20, 40, 10, 20)
+    intervals = get_query_intervals(-454, 8850, 315, 330)
     print intervals
-    
-    intervals = get_query_intervals(-20, 40, -21, 41)
-    print intervals
-    
+
+#    intervals = get_query_intervals(-20, 40, -21, 41)
+#    print intervals
+#    
+#    intervals = get_query_intervals(-20, 40, 10, 20)
+#    print intervals
+#    
+#    indexes = get_index_intervals(14,-20,40,1)
+#    print indexes
+#
+#    indexes = get_index_intervals(320,-454,8550,1)
+#    print indexes
+#
+#    indexes = get_index_intervals(320,-454,8550,10)
+#    print indexes
+
 if __name__ == "__main__":
     main()
