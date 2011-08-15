@@ -691,7 +691,7 @@ def getworldclimtile(options):
         subprocess.call(args)
         ''' Remove the zip file.'''
         os.remove(varpath)
-        return True
+    return True
 
 ### starspan outputs to Couch- and GAE-ready CSVs ###
 def starspancsvdir2couchcsvs(batchdir, key, cells_per_degree, workspace):
@@ -731,19 +731,21 @@ def starspancsv2couchcsv(csvfile, key, cells_per_degree, workspace):
         varalias=getvaralias(varname)
         cells.get(cellkey).get('v')[varalias] = translatevariable(row.get('avg_Band1'))
         lastkey=cellkey
+    ''' Remove cells having all zero values. This is true if the value of bio7 (temperature annual range) is 0.'''
+    for k in cells.keys():
+        if cells[k].get('v')['b7']=='0':
+            del(cells[k])
     newcells = [dict(cellkey=k, doc=simplejson.dumps(cells[k])) for k in cells.keys()]
     outfilename = '%s_%s_%s.csv' % (key,firstkey,lastkey)
-    gaedir = os.path.join(workspace,'for_gae')
-    if not os.path.exists(gaedir):
-        os.mkdir(gaedir)
-    outfile = os.path.join(gaedir,outfilename)
+    couchdir = os.path.join(workspace,'forcouch')
+    if not os.path.exists(couchdir):
+        os.mkdir(couchdir)
+    outfile = os.path.join(couchdir,outfilename)
     fieldnames=['cellkey','doc']
     with open(outfile,'w') as f:
         dw = csv.DictWriter(f, fieldnames, quotechar="'")
         dw.writer.writerow(dw.fieldnames)
         dw.writerows(newcells)
-    t2 = time.time()
-    logging.info('%s documents saved to %s in %s' % (len(cells), outfile, t2-t1))
     return outfile
 
 ### CSVs to CouchDB ###
@@ -920,7 +922,7 @@ def main():
     command = options.command.lower()
     if options.logfile:
         if options.logfile == 'none':
-            logging.basicConfig(level=logging.INFO)
+            logging.basicConfig(level=logging.DEBUG)
         else:
             logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s',
@@ -973,14 +975,17 @@ def main():
 
     if command=='batchcellstoshapes':
         batchdir = os.path.join(options.workspace,'batches')
+        logging.info('Beginning prepareworkspace()...%s' % options.workspace)
+        t0 = time.time()
+        if not prepareworkspace(options):
+            logging.info('Unable to prepare workspace %s.' % options.workspace)
+            sys.exit(0)
+        t1 = time.time()
+        logging.info('Total elapsed time to prepareworkspace(): %s' % (t1-t0))
 
         logging.info('Beginning makeclippedtile()...create clipped Tile of area to process')
         t0 = time.time()
-        # For Unix
         clippedtile = makeclippedtile(options)
-        # For Mac.
-#        clippedtile = maketile(options)
-#        clippedtile.filename='/Users/tuco/Data/SDL/workspace/Tile37-1/37-clipped.shp'
         t1 = time.time()
         logging.info('Total elapsed time to makeclippedtile(): %s' % (t1-t0))
 
@@ -988,6 +993,7 @@ def main():
             os.mkdir(batchdir)
             if not os.path.exists(batchdir):
                 logging.info('Unable to make batch directory %s.' % batchdir) 
+                sys.exit(0)
 
         logging.info('Beginning batchprocesscells()...')
         t0 = time.time()
@@ -997,7 +1003,8 @@ def main():
         
         logging.info('Beginning clipcellbatchfiles()...')
         t0 = time.time()
-        clipcellbatchfiles(batchdir, options.gadm)
+        clippingshape = os.path.join(options.workspace,clippedtile.filename)
+        clipcellbatchfiles(batchdir, clippingshape)
         t1 = time.time()
         logging.info('Total elapsed time to clipcellbatchfiles(): %s' % (t1-t0))
         sys.exit(1)
@@ -1054,10 +1061,14 @@ def main():
         logging.info('Beginning makeclippedtile()...create clipped Tile of area to process')
         t0 = time.time()
         clippedtile = makeclippedtile(options)
-#        clippedtile = maketile(options)
-#        clippedtile.filename='/Users/tuco/Data/SDL/workspace/Tile37-1/37-clipped.shp'
         t1 = time.time()
         logging.info('Total elapsed time to makeclippedtile(): %s' % (t1-t0))
+
+        if not os.path.exists(batchdir):
+            os.mkdir(batchdir)
+            if not os.path.exists(batchdir):
+                logging.info('Unable to make batch directory %s.' % batchdir) 
+                sys.exit(0)
 
         logging.info('Beginning batchprocesscells()...')
         t0 = time.time()
@@ -1067,7 +1078,8 @@ def main():
         
         logging.info('Beginning clipcellbatchfiles()...')
         t0 = time.time()
-        clipcellbatchfiles(batchdir, options.gadm)
+        clippingshape = os.path.join(options.workspace,clippedtile.filename)
+        clipcellbatchfiles(batchdir, clippingshape)
         t1 = time.time()
         logging.info('Total elapsed time to clipcellbatchfiles(): %s' % (t1-t0))
 
@@ -1090,6 +1102,7 @@ def main():
         logging.info('Total elapsed time to couchcsvdir2couchdb(): %s' % (t1-t0))
         sys.exit(1)
 
+    logging.info('Command %s not understood.' % command)
 #    if command == 'clip':
 #        logging.info('Beginning command clip.')
 #        t0 = time.time()
