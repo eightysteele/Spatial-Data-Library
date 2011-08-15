@@ -691,7 +691,7 @@ def getworldclimtile(options):
         subprocess.call(args)
         ''' Remove the zip file.'''
         os.remove(varpath)
-        return True
+    return True
 
 ### starspan outputs to Couch- and GAE-ready CSVs ###
 def starspancsvdir2couchcsvs(batchdir, key, cells_per_degree, workspace):
@@ -731,6 +731,7 @@ def starspancsv2couchcsv(csvfile, key, cells_per_degree, workspace):
         varalias=getvaralias(varname)
         cells.get(cellkey).get('v')[varalias] = translatevariable(row.get('avg_Band1'))
         lastkey=cellkey
+    ''' Remove cells having all zero values. This is true if the value of bio7 (temperature annual range) is 0.'''
     for k in cells.keys():
         if cells[k].get('v')['b7']=='0':
             del(cells[k])
@@ -921,7 +922,7 @@ def main():
     command = options.command.lower()
     if options.logfile:
         if options.logfile == 'none':
-            logging.basicConfig(level=logging.INFO)
+            logging.basicConfig(level=logging.DEBUG)
         else:
             logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(message)s',
@@ -974,6 +975,13 @@ def main():
 
     if command=='batchcellstoshapes':
         batchdir = os.path.join(options.workspace,'batches')
+        logging.info('Beginning prepareworkspace()...%s' % options.workspace)
+        t0 = time.time()
+        if not prepareworkspace(options):
+            logging.info('Unable to prepare workspace %s.' % options.workspace)
+            sys.exit(0)
+        t1 = time.time()
+        logging.info('Total elapsed time to prepareworkspace(): %s' % (t1-t0))
 
         logging.info('Beginning prepareworkspace()...%s' % options.workspace)
         t0 = time.time()
