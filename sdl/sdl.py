@@ -973,7 +973,7 @@ def main():
         logging.info('Total elapsed time to getworldclimtile(): %s' % (t1-t0))
         sys.exit(1)
 
-    if command=='batchcellstoshapes':
+    if command=='cliptileonly':
         batchdir = os.path.join(options.workspace,'batches')
         logging.info('Beginning prepareworkspace()...%s' % options.workspace)
         t0 = time.time()
@@ -983,6 +983,15 @@ def main():
         t1 = time.time()
         logging.info('Total elapsed time to prepareworkspace(): %s' % (t1-t0))
 
+        logging.info('Beginning makeclippedtile()...create clipped Tile of area to process')
+        t0 = time.time()
+        clippedtile = makeclippedtile(options)
+        t1 = time.time()
+        logging.info('Total elapsed time to makeclippedtile(): %s' % (t1-t0))
+        sys.exit(1)
+
+    if command=='batchcellstoshapes':
+        batchdir = os.path.join(options.workspace,'batches')
         logging.info('Beginning prepareworkspace()...%s' % options.workspace)
         t0 = time.time()
         if not prepareworkspace(options):
@@ -1048,8 +1057,6 @@ def main():
         sys.exit(1)
 
     if command=='full':
-#./sdl.py -n 120 -u http://eighty.berkeley.edu:5984 -d test -g /Users/tuco/Projects/Spatial-Data-Library/data/gadm/Terrestrial-10min-unbuffered-dissolved.shp -b 50000 -k 37 -v /Users/tuco/Data/SDL/worldclim/37 -w /Users/tuco/Data/SDL/workspace/Tile37-1 -f 30,0 -t 31,-1 -c full -l none
-#./sdl.py -n 120 -u http://eighty.berkeley.edu:5984 -d test -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-unbuffered-dissolved.shp -b 50000 -k 37 -v /home/tuco/Data/SDL/worldclim/37 -w /home/tuco/Data/SDL/workspace/Tile37-1 -f 30,0 -t 31,-1 -c full -l none
         batchdir = os.path.join(options.workspace,'batches')
         couchdir = os.path.join(options.workspace,'forcouch')
 
