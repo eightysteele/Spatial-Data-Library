@@ -39,32 +39,8 @@ import sys
 from rmg import *
 
 VARDICT = {'tmean':'t', 'tmin':'m', 'tmax':'x', 'alt':'a', 'bio':'b', 'prec':'p'}
-OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
-#OGR2OGR = '/usr/local/bin/ogr2ogr'
-
-#class Variable(object):
-#    '''An environmental variable backed by a .bil and a .hdr file.'''
-#
-#    def __init__(self, bilfile, hdrfile):
-#        '''Constructs a Variable.
-#
-#        Arguments:
-#            bilfile - The .bil file path.
-#            hdrfile - The .hdr file path.
-#        '''
-#        self.bilfile = bilfile
-#        self.hdrfile = hdrfile
-#        
-#        # Loads xmin, xmax, ymin, and ymax values from the .hdr file:
-#        for line in open(hdrfile, 'r'):
-#            if line.startswith('MaxX'):
-#                self.xmax = int(line.split()[1].strip())
-#            elif line.startswith('MinX'):
-#                self.xmin = int(line.split()[1].strip())
-#            elif line.startswith('MaxY'):
-#                self.ymax = int(line.split()[1].strip())
-#            elif line.startswith('MinY'):
-#                self.ymin = int(line.split()[1].strip())
+#OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
+OGR2OGR = '/usr/local/bin/ogr2ogr'
 
 class Cell(object):
     ''' A cell described by a key, a polygon, and a grid resolution defined by
@@ -253,236 +229,6 @@ class Tile(object):
         w.record(TileKey=self.key)
         w.save(fout)        
         return '%s.shp' % fout
-
-#    @classmethod
-#    def clip2cell(cls, src, shapefile):
-#        ''' Creates a new shapefile that is the intersection of the src file 
-#            and the given shapefile. Returns the name of the clipped shapefile.
-#            
-#            Arguments:
-#                src - the file to intersect with the shapefile
-#                shapefile - the shapefile to intersect with the src
-#        '''
-#        t0 = time.time()
-#        logging.info('Beginning clipping of %s by %s.' % (src, shapefile) )
-#        clipped = src.replace('.shp', '-clipped.shp')
-#        command = '%s -clipsrc %s %s %s' % (OGR2OGR, shapefile, clipped, src)
-#        args = shlex.split(command)
-#        subprocess.call(args)
-#        t1 = time.time()
-#        logging.info('%s clipped by %s in %s' % (src, shapefile, t1-t0))
-#        return clipped
-#                
-#    def bulkload2couchdb(self, options):
-#        ''' Loads the Tile to CouchDB using the command line arguments.
-#        
-#            Arguments:
-#                options - the options parsed from the command line. Uses:
-#                    batchsize - the number of cells to include in a batch to avoid memory overflow
-#                    cells_per_degree - the number of cells in a degree of longitude at
-#                        the equator - defines a resolution for the grid system.
-#        '''
-#        t0 = time.time()
-#        logging.info('Beginning bulkload2couchdb().')
-#        batchsize = int(options.batchsize)
-#        batchnum = 0
-#        cells_per_degree = float(options.cells_per_degree)
-#        cells = []
-#        count = 0
-#        for cell in self.getcells():
-#            cells.append(cell)
-#            count += 1
-#            if count >= batchsize:
-#                self.cellbatch2clip2csv2couchdb(cells, options, batchnum)
-#                count = 0
-#                cells = []
-#                batchnum += 1
-#                continue
-#        if count > 0:
-#            self.cellbatch2clip2csv2couchdb(cells, options, batchnum)
-#        t1 = time.time()
-#        logging.info('Total elapsed time to bulkload2couchdb(): %s' % (t1-t0))
-#    def cellbatch2clip2csv2couchdb(self, cells, options, batchnum):
-#        ''' Creates a shapefile for a numbered batch of cells, clips the cells shapefile by 
-#            the shapefile created from the intersection of the file provided in the gadm
-#            parameter and the Tile boundary, creates the csv file using starspan to get the 
-#            variable value statistics out of the Worldclim tile, and finally uploads the 
-#            resulting cells to CouchDB.
-#            
-#            Arguments:
-#                cells - the list of cells in the batch with their keys and polygons
-#                options - the options parsed from the command line
-#                batchnum - the sequential number of the batch of cells
-#
-#        '''
-#        t0 = time.time()
-#        filename = os.path.join(os.path.splitext(self.filename)[0], '%s' % batchnum)
-#        logging.info('Preparing shapefile %s in cellbatch2clip2csv2couchdb().' % (filename) )
-#        w = shapefile.Writer(shapefile.POLYGON)
-#        w.field('CellKey','C','255')
-#        for cell in cells:
-#            w.poly(parts=[cell.polygon])
-#            w.record(CellKey=cell.key)
-#        w.save(filename)        
-#        t1 = time.time()
-#        logging.info('Cell batch shapefile %s prepared in %s' % (filename, t1-t0))
-#        clippedfile = Tile.clip2cell('%s.shp' % filename, self.filename)
-#        csvfile = Tile.statistics2csv(clippedfile, options)
-#        Tile.starspan2csv2couch(csvfile, options)
-
-#    @classmethod
-#    def starspan2csv2couch_stats(cls, csvfile, options): # unused, but save in case stats other than avg are desired at some point
-#        ''' Loads cells having avg stdev min and max values of a variable from 
-#            starspan2csv file to CouchDB.
-#            
-#            Arguments:
-#                stats - a list of the statistics calculations expected in the starspan file
-#                csvfile - the CSV file containing the cells to load
-#                options - the options parsed from the command line. Uses:
-#                    couchurl - the URL of the CouchDB server
-#                    database - the name of the database in CouchDB
-#                    cells_per_degree - the desired resolution of the grid
-#        '''
-#        t0 = time.time()
-#        logging.info('Beginning starspan2csv2couch(), preparing cells for bulkloading from %s.' % (csvfile) )
-#        server = couchdb.Server(options.couchurl)
-#        cdb = server[options.database]
-#        stats = ['avg']
-##        stats = ['avg','stdev','min','max']
-#        cells_per_degree = float(options.cells_per_degree)
-#        dr = csv.DictReader(open(csvfile, 'r'))
-#        cells = {}
-#        for row in dr:
-#            cellkey = row.get('CellKey')
-#            if not cells.has_key(cellkey):
-#                cells[cellkey] = {
-#                    '_id': cellkey,
-#                    'tile': options.key,
-#                    'coords': getpolygon(cellkey, cells_per_degree),
-#                    'vars': {}
-#                    }            
-#            varname = row.get('RID').split('_')[0]
-#            for stat in stats:
-#                statname = '%s_Band1' % (stat)
-#                statval = row.get(statname)
-#                varstat = '%s' % (varname)
-#                # removed capacity to process multiple stats - just getting avg now.
-##                varstat = '%s_%s' % (varname,stat)
-#                # the following needed to process Worldclim stats for representation in the datastore
-#                cells.get(cellkey).get('vars')[varstat] = translatestatistic(varname, stat, statval)
-#        t1 = time.time()
-#        logging.info('%s cells prepared for upload in %s' % (len(cells), t1-t0))
-#        cdb.update(cells.values())
-#        t2 = time.time()
-#        logging.info('%s documents uploaded in %s' % (len(cells), t2-t1))
-
-#    @classmethod
-#    def starspan2csv2couch(cls, csvfile, options):
-#        ''' Loads cells having avg values of a variable from starspan2csv file to CouchDB.
-#            
-#            Arguments:
-#                csvfile - the CSV file containing the cells to load
-#                options - the options parsed from the command line. Uses:
-#                    couchurl - the URL of the CouchDB server
-#                    database - the name of the database in CouchDB
-#                    cells_per_degree - the desired resolution of the grid
-#        '''
-#        t0 = time.time()
-#        logging.info('Beginning starspan2csv2couch(), preparing cells for bulkloading from %s.' % (csvfile) )
-#        server = couchdb.Server(options.couchurl)
-#        cdb = server[options.database]
-#        cells_per_degree = float(options.cells_per_degree)
-#        drf = csv.DictReader(open(csvfile, 'r'))
-#        firstkey = drf.next().get('CellKey')
-#        cells = {}
-#        dr = csv.DictReader(open(csvfile, 'r'))
-#        for row in dr:
-#            cellkey = row.get('CellKey')
-#            if not cells.has_key(cellkey):
-#                cells[cellkey] = {
-#                    '_id': cellkey,
-#                    't': options.key,  # tile number
-#                    'p': getpolygon(cellkey, cells_per_degree), # polygon 
-#                    'v': {}  # dictionary of variables (tmean1, ... tmin1, ... tmax1, ...alt, ... prec1, ... bio1, ...
-#                    }
-##                cells[cellkey] = {
-##                    '_id': cellkey,
-##                    'tile': options.key,
-##                    'coords': getpolygon(cellkey, cells_per_degree),
-##                    'vars': {}
-##                    }
-#            varname = row.get('RID').split('_')[0]
-#            varalias=getvaralias(varname)
-#            cells.get(cellkey).get('vars')[varalias] = translatevariable(row.get('avg_Band1'))
-#            lastkey=cellkey
-#        t1 = time.time()
-#        logging.info('%s cells prepared for upload in %s' % (len(cells), t1-t0))
-#### Write out to workspace tileno_batchno.csv
-#        newcells = dict((k, simplejson.dumps(v)) for k,v in cells.iteritems())
-#        outfile = '%s_%s-%s.csv' % (options.key,firstkey,lastkey)
-#        os.path.join(options.workspace, outfile)
-#        dw = csv.DictWriter(open(outcsvfile,'w'))
-#        dw.writerow(cells)
-#            
-#        cdb.update(cells.values())
-#        t2 = time.time()
-#        logging.info('%s documents uploaded in %s' % (len(cells), t2-t1))
-
-#    @classmethod
-#    def statistics2csv(cls, shapefile, options):
-#        ''' Extracts statistics on variables in the Worldclim tile for the cells
-#            in the shapefile via starspan.
-#
-#            Arguments:
-#                shapefile - the shapefile containing the cells
-#                options - the options parsed from the command line. Uses:
-#                    vardir - the path to the directory in which to store the Worldclim files
-#        '''
-#        t0 = time.time()
-#        logging.info('Beginning starspan statistics on %s.' % (shapefile) )
-#        variables = [os.path.join(options.vardir, x) \
-#                         for x in os.listdir(options.vardir) \
-#                         if x.endswith('.bil')]
-#        variables = reduce(lambda x,y: '%s %s' % (x, y), variables)
-#        csvfile = shapefile.replace('.shp', '.csv')
-#        # Call starspan requesting mean of variable, excluding nodata values (-9999 in the file is the same as 55537)
-#        # starspan -- vector 0-clipped.shp --raster tmean
-#        command = 'starspan --vector %s --raster %s --stats %s avg --nodata 55537' \
-#            % (shapefile, variables, csvfile)
-##        command = 'starspan --vector %s --raster %s --stats %s avg stdev min max --nodata 55537' \
-##            % (shapefile, variables, csvfile)
-#        args = shlex.split(command)
-#        subprocess.call(args)
-#        t1 = time.time()
-#        logging.info('starspan statistics finished in %s.' % (t1-t0) )
-#        return csvfile
-        
-#    @classmethod
-#    def starspan2csv(cls, shapefile, options):      
-#        ''' Extracts statistics on variables in the Worldclim tile for the cells
-#            in the shapefile via starspan.
-#
-#            Arguments:
-#                shapefile - the shapefile containing the cells
-#                options - the options parsed from the command line. Uses:
-#                    vardir - the path to the directory in which to store the Worldclim files
-#        '''
-#        t0 = time.time()
-#        logging.info('Beginning starspan statistics on %s.' % (shapefile) )
-#        variables = [os.path.join(options.vardir, x) \
-#                         for x in os.listdir(options.vardir) \
-#                         if x.endswith('.bil')]
-#        variables = reduce(lambda x,y: '%s %s' % (x, y), variables)
-#        csvfile = shapefile.replace('.shp', '.csv')
-#        # Call starspan requesting mean of variable, excluding nodata values (-9999 in the file is the same as 55537)
-#        command = 'starspan --vector %s --raster %s --stats %s avg --nodata 55537' \
-#            % (shapefile, variables, csvfile)
-#        args = shlex.split(command)
-#        subprocess.call(args)
-#        t1 = time.time()
-#        logging.info('starspan statistics finished in %s.' % (t1-t0) )
-#        return csvfile
-        
     
 def getvaralias(varname):
     varcategory = re.split('[0-9]+',varname)[0]
@@ -554,34 +300,10 @@ def getboundingbox(key, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXI
     '''
     return RMGCell.boundingbox(key, cells_per_degree, digits, a, inverse_flattening)
 
-def translatestatistic(varname, stat, statval):
-    ''' Returns a translated value for a starspan-processed Worldclim statistic (avg, stdev, min, max). 
-        Translation includes returning spurious large integer values 
-        (starspan must use an unsigned short int at some point)
-        to their correct negative values, then truncating these values to be integers.
-        
-        Arguments:
-            varname - the name of the variable to which the statistic applies (tmean, prec, alt...)
-            stat - the statistic the value represents (avg, stdev, min, max)
-            statval - the value of the statistic as returned from starspan
-    '''
-#    logging.info('VARNAME: %s STAT: %s STATVAL: %s' % (varname, stat, statval))
-    newval = float(statval)
-    if stat == 'stdev':
-        return truncate(newval,0)
-    else:
-        if newval > 55537: # Actual value is a negative number greater than the nodata value of -9999
-            newval = newval - 65536
-        if varname == 'tmean':
-            # tmen in Worldclim is degrees Celsius times 10, turn it into degrees Celsius
-            newval = newval/10.0
-            return truncate(newval,1)
-    return truncate(newval,0)
-
 def translatevariable(varval):
     ''' Returns a translated value for a starspan-processed Worldclim variable. Translation includes
-        returning spurious large integer values (starspan must use an unsigned short int at some point)
-        to their correct negative values, then truncating these values to be integers.
+        returning spurious large integer values (starspan uses an unsigned short int at some point)
+        to their correct negative values, then rounding these values to be integers.
         
         Arguments:
             varval - the variable value as returned from starspan
@@ -589,62 +311,7 @@ def translatevariable(varval):
     newval = float(varval)
     if newval > 55537: # Actual value is a negative number greater than the nodata value of -9999
         newval = newval - 65536
-    newval = truncate(newval,0)
-    return newval
-
-#def clip(options):
-#    ''' Creates a clipped Tile object and associated files from the command line arguments.
-#        Returns a clipped Tile object.
-#    
-#        Arguments:
-#            options - the options parsed from the command line. Uses:
-#                key - the tile identifier (e.g., '37' for Worldclim tile 37)
-#                nwcorner - the northwest corner of the Tile
-#                secorner - the southeast corner of the Tile
-#                cells_per_degree - the number of cells in a degree of longitude at
-#                    the equator - defines a resolution for the grid system.
-#                gadm - the shapefile to clip to (polygon of are containing Worldclim data)
-#    '''
-#    key = options.key
-#    nw = map(float, options.nwcorner.split(','))
-#    se = map(float, options.secorner.split(','))
-#    nwcorner = Point(nw[0], nw[1])
-#    secorner = Point(se[0], se[1])
-#    cells_per_degree = float(options.cells_per_degree)
-#    tile = Tile(key, nwcorner, secorner, cells_per_degree)
-#    clipped = tile.clip(options.gadm, options.workspace)
-#    return clipped
-
-#def cleanworkspace(options):
-#    if os.path.exists(options.workspace):
-#        base = '%s-clipped' % options.key
-#        basedir = os.path.join(options.workspace, base)
-#        if os.path.exists(basedir):
-#            basedirall = os.path.join(options.workspace, options.key) 
-#            command = 'rm %s/*' % (basedir)
-#            logging.info(command)
-#            args = shlex.split(command)
-#            subprocess.call(args)
-#
-#        base = os.path.join(options.workspace, options.key)
-#        command = 'rm %s*' % (base)
-#        logging.info(command)
-#        args = shlex.split(command)
-#        subprocess.call(args)
-#    else:
-#        command = 'mkdir %s-clipped' % (base)
-#        logging.info(command)
-#        args = shlex.split(command)
-#        subprocess.call(args)
-#
-#def load(options, clipped):
-#    ''' Loads a clipped Tile object to CouchDB using the command line arguments.
-#    
-#        Arguments:
-#            options - the options parsed from the command line
-#    '''
-#    cleanworkspace(options)
-#    clipped.bulkload2couchdb(options)
+    return int(round(newval))
 
 def prepareworkspace(options):
     if not os.path.exists(options.workspace):
@@ -671,7 +338,7 @@ def getworldclimtile(options):
         if not os.path.exists(options.vardir):
             logging.info('Unable to create variable directory %s.' % options.vardir)
             return False
-    ''' Assume that if there are files in this folfer already, it's OK to proceed.'''
+    ''' Assume that if there are files in this folder already, it's OK to proceed.'''
     if len(os.listdir(options.vardir))>0:
         return True
 
@@ -1118,61 +785,6 @@ def main():
         sys.exit(1)
 
     logging.info('Command %s not understood.' % command)
-#    if command == 'clip':
-#        logging.info('Beginning command clip.')
-#        t0 = time.time()
-#        clipped = clip(options)
-#        t1 = time.time()
-#        logging.info('Finished command clip in %ss.' % (t1-t0))
-#        sys.exit(1)
-
-#    if command == 'starspan2csv2couchdb':
-#        logging.info('Beginning command starspan2csv2couch.')
-#        t0 = time.time()
-#        tile = maketile(options)
-#        csvfile = os.path.join(options.workspace, options.csvfile)
-#        tile.starspan2csv2couch(csvfile, options)
-#        t1 = time.time()
-#        logging.info('Finished command starspan2csv2couch in %ss.' % (t1-t0))
-#        sys.exit(1)
-
-#    if command == 'load':
-#        logging.info('Beginning command load.')
-#        t0 = time.time()
-#        clipped = clip(options)
-#        load(options, clipped)    
-#        t1 = time.time()
-#        logging.info('Finished command load in %ss.' % (t1-t0))
-#        sys.exit(1)
-
-#    if command == 'full':
-#        logging.info('Beginning command full.')
-#        t0 = time.time()
-#        getworldclimtile(options)
-#        clipped = clip(options)
-#        load(options, clipped)    
-#        t1 = time.time()
-#        logging.info('Finished command full in %ss.' % (t1-t0))
-#        sys.exit(1)
-
-#    if command == 'cleanworkspace':
-#        logging.info('Beginning command cleanworkspace.')
-#        t0 = time.time()
-#        cleanworkspace(options)
-#        t1 = time.time()
-#        logging.info('Finished command cleanworkspace in %ss.' % (t1-t0))
-#        sys.exit(1)
-
-#    if command == 'test':
-#        logging.info('Beginning command test.')
-#        t0 = time.time()
-#        # sdl.py -c test -k 32 -d worldclim-rmg-32 -u http://eightysteele.berkeley.edu:5984 -n 120 -w /Users/tuco/Data/SDL/workspace -p 0-clipped.csv
-## ./sdl.py -v /home/tuco/Data/SDL/worldclim/32 -w /home/tuco/SDL/workspace -u http://eighty.berkeley.edu:5984 -d worldclim-rmg-32 -g /home/tuco/SDL/Spatial-Data-Library/data/gadm/Terrestrial-10min-buffered_00833.shp -k 32 -f 60,0 -t 30,-30 -n 120 -b 50000 > /home/tuco/SDL/workspace/tile32starspan.log &
-#        tile = maketile(options)
-#        tile.starspan2csv2couch(os.path.join(options.workspace, options.csvfile), options)
-#        t1 = time.time()
-#        logging.info('Finished command test in %ss.' % (t1-t0))
-#        sys.exit(1)
 
 if __name__ == '__main__':
     main()
