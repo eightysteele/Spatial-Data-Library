@@ -113,11 +113,16 @@ def truncate(x, digits):
         x - the input float
         digits - the number of places of precision to the right of the decimal
     """
-    FORMAT = """.%sf"""
-    format_x = FORMAT % str(int(digits))
     if x==0:
         return '0'
-    return format(x, format_x).strip('0')
+    if digits==0:
+        return str(int(round(x)))
+    FORMAT = """.%sf"""
+    format_x = FORMAT % str(int(digits))
+    a = format(x, format_x)
+    b = format(x, format_x).strip('0')
+    c = format(x, format_x).strip('0').strip('.')
+    return format(x, format_x).strip('0').strip('.')
 
 def createPlacemark(key, polygon):
     """Returns a KML placemark for a polygon as a string.
