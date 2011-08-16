@@ -400,7 +400,7 @@ def starspancsv2couchcsv(csvfile, key, cells_per_degree, workspace):
         lastkey=cellkey
     ''' Remove cells having all zero values. This is true if the value of bio7 (temperature annual range) is 0.'''
     for k in cells.keys():
-        if cells[k].get('v')['b7']=='0':
+        if cells[k].get('v')['b7']==0:
             del(cells[k])
     newcells = [dict(cellkey=k, doc=simplejson.dumps(cells[k])) for k in cells.keys()]
     outfilename = '%s_%s_%s.csv' % (key,firstkey,lastkey)
