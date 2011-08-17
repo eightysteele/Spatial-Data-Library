@@ -277,16 +277,13 @@ def main():
     
     varlimits = {}
 
-#    getworldclimtile('', options.vardir)
-#    getminmax(options.vardir, varlimits)
-    
     for i in range(0,5):
         for j in range (0,12):
             tile = '%s%s' %(i,j)
             savetodir = os.path.join(options.vardir,tile)
-            getworldclimtile(tile, vardir)
-            getminmax(options.vardir, varlimits)
-        print 'Row %s Worldclim variable limits: %s' % varlimits
+#            getworldclimtile(tile, savetodir)
+            getminmax(savetodir, varlimits)
+    print 'Worldclim variable limits: %s' % (varlimits)
 
 if __name__ == '__main__':
     main()
