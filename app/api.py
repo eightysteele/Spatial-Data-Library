@@ -39,9 +39,9 @@ from ndb import query, model
 from ndb.query import OR, AND
 
 # CouchDb connection parameters:
-COUCHDB_HOST = 'http://eighty.berkeley.edu'
+COUCHDB_HOST = 'http://spatial.iriscouch.com'
 COUCHDB_PORT = 5984
-COUCHDB_DATABASE = 'worldclim-rmg'
+COUCHDB_DATABASE = 'worldclim'
 COUCHDB_DESIGN = 'api'
 COUCHDB_VIEW = 'cells'
 COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % \
@@ -213,6 +213,7 @@ class CellValuesHandler(webapp.RequestHandler):
         Returns:
             A dictionary of cell key to CouchDBCell instance.
         """
+        logging.info(COUCHDB_URL)
         response = urlfetch.fetch(
             url=COUCHDB_URL,
             payload=simplejson.dumps({'keys': list(cell_keys)}),
@@ -227,8 +228,8 @@ class CellValuesHandler(webapp.RequestHandler):
             cells[key] = Cell(
                 id=key,
                 rev=value.get('rev'),
-                coords=simplejson.dumps(value.get('coords')),
-                varvals=simplejson.dumps(value.get('varvals')))
+                coords=simplejson.dumps(value.get('b')),
+                varvals=simplejson.dumps(value.get('v')))
         return cells
 
     @classmethod
@@ -267,7 +268,6 @@ class CellValuesHandler(webapp.RequestHandler):
             cells.update(couched)
 
             # Put cells from CouchDB into datastore
-            #db.put(couched.values())
             model.put_multi(couched.values())
             
         # Cache cells
@@ -298,13 +298,19 @@ class CellValuesHandler(webapp.RequestHandler):
         """Handles a cell API request by proxing to post."""
         return self.post()
 
-    def process_cell_keys(self, cell_keys, si=True, c=False, offset_key=None, variable_names = []):
+    def process_cell_keys(self, cell_keys, si=None, c=None, offset_key=None, variable_names = []):
+        if not c:
+            c = 'true' == self.request.get('c') 
+        if not si:
+            si = 'true' == self.request.get('si')
+
         # Get cells by key
         cells = CellValuesHandler.getcells(cell_keys)        
         
         # Prepare results
         results = []                    
         for cellkey, cell in cells.iteritems():
+            logging.info('cellkey=%s, cell=%s' % (cellkey, cell))
             varvals = simplejson.loads(cell.varvals)
             requested_varvals = {}
             
