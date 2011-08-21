@@ -39,8 +39,8 @@ import sys
 from rmg import *
 
 VARDICT = {'tmean':'t', 'tmin':'m', 'tmax':'x', 'alt':'a', 'bio':'b', 'prec':'p'}
-#OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
-OGR2OGR = '/usr/local/bin/ogr2ogr'
+OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
+#OGR2OGR = '/usr/local/bin/ogr2ogr'
 
 class Cell(object):
     ''' A cell described by a key, a polygon, and a grid resolution defined by
@@ -400,7 +400,9 @@ def starspancsv2couchcsv(csvfile, key, cells_per_degree, workspace):
         lastkey=cellkey
     ''' Remove cells having all zero values. This is true if the value of bio7 (temperature annual range) is 0.'''
     for k in cells.keys():
-        if cells[k].get('v')['b7']==0:
+        ''' Remove any cell where alt, bio12 (Annual Precipitation), and tmax1 are all 0. '''
+        ''' Tried tmin12 and tmax12 both 0, but some Worldclim cells have this combination for reasons unknown.'''
+        if cells[k].get('v')['a']==0 and cells[k].get('v')['b12']==0 and cells[k].get('v')['x1']==0:
             del(cells[k])
     newcells = [dict(cellkey=k, doc=simplejson.dumps(cells[k])) for k in cells.keys()]
     outfilename = '%s_%s_%s.csv' % (key,firstkey,lastkey)
@@ -630,7 +632,7 @@ def main():
         sys.exit(1)
 
     if command=='getworldclimtile':
-        ''' Make sure Worlclim layers are in place for the Tile.'''
+        ''' Make sure Worldclim layers are in place for the Tile.'''
         logging.info('Beginning getworldclimtile()...get Worldclim layers for Tile %s' % options.key)
         t0 = time.time()
         if not getworldclimtile(options):
