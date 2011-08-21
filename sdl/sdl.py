@@ -39,8 +39,8 @@ import sys
 from rmg import *
 
 VARDICT = {'tmean':'t', 'tmin':'m', 'tmax':'x', 'alt':'a', 'bio':'b', 'prec':'p'}
-OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
-#OGR2OGR = '/usr/local/bin/ogr2ogr'
+#OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
+OGR2OGR = '/usr/local/bin/ogr2ogr'
 
 class Cell(object):
     ''' A cell described by a key, a polygon, and a grid resolution defined by
@@ -398,7 +398,6 @@ def starspancsv2couchcsv(csvfile, key, cells_per_degree, workspace):
         varalias=getvaralias(varname)
         cells.get(cellkey).get('v')[varalias] = translatevariable(row.get('avg_Band1'))
         lastkey=cellkey
-    ''' Remove cells having all zero values. This is true if the value of bio7 (temperature annual range) is 0.'''
     for k in cells.keys():
         ''' Remove any cell where alt, bio12 (Annual Precipitation), and tmax1 are all 0. '''
         ''' Tried tmin12 and tmax12 both 0, but some Worldclim cells have this combination for reasons unknown.'''
@@ -662,7 +661,7 @@ def main():
         logging.info('Command %s complete.' % (command))
         sys.exit(1)
 
-    if command=='batchcellstoshapes':
+    if command=='batchcells2shapes':
         batchdir = os.path.join(options.workspace,'batches')
         logging.info('Beginning prepareworkspace()...%s' % options.workspace)
         t0 = time.time()
