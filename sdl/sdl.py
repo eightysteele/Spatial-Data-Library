@@ -519,7 +519,7 @@ def _getoptions():
                       help="The workspace directory for temporary files.",
                       default=None)
     parser.add_option("-u", 
-                      "--url", 
+                      "--couchurl", 
                       dest="couchurl",
                       help="The CouchDB URL.",
                       default=None)
