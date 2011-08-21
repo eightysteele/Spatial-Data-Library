@@ -401,7 +401,7 @@ def starspancsv2couchcsv(csvfile, key, cells_per_degree, workspace):
     ''' Remove cells having all zero values. This is true if the value of bio7 (temperature annual range) is 0.'''
     for k in cells.keys():
         ''' Remove any cell where alt, bio12 (Annual Precipitation), and tmax1 are all 0. '''
-        ''' Tried tmin12 and tmax12 both 0, but some Wroldclim cells have this combination for reasons unknown.'''
+        ''' Tried tmin12 and tmax12 both 0, but some Worldclim cells have this combination for reasons unknown.'''
         if cells[k].get('v')['a']==0 and cells[k].get('v')['b12']==0 and cells[k].get('v')['x1']==0:
             del(cells[k])
     newcells = [dict(cellkey=k, doc=simplejson.dumps(cells[k])) for k in cells.keys()]
