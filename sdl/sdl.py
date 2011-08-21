@@ -630,7 +630,7 @@ def main():
         t0 = time.time()
         if not prepareworkspace(options):
             logging.info('Unable to prepare workspace %s.' % options.workspace)
-            ys.exit(0)
+            sys.exit(0)
         t1 = time.time()
         logging.info('Total elapsed time to prepareworkspace(): %s' % (t1-t0))
 
