@@ -519,7 +519,7 @@ def _getoptions():
                       help="The workspace directory for temporary files.",
                       default=None)
     parser.add_option("-u", 
-                      "--couchurl", 
+                      "--url", 
                       dest="couchurl",
                       help="The CouchDB URL.",
                       default=None)
@@ -531,7 +531,7 @@ def _getoptions():
     parser.add_option("-g", 
                       "--gadm", 
                       dest="gadm",
-                      help="The Global Administrative shapefile to clip to.",
+                      help="The shapefile with the area having data.",
                       default=None)
     parser.add_option("-k", "--key", dest="key",
                       help="Identifier for the Tile",
@@ -549,40 +549,21 @@ def _getoptions():
                       "--batchsize", 
                       dest="batchsize",
                       help="The batch size (default 25,000)",
-                      default=25000)
+                      default=50000)
     parser.add_option("-l", 
                       "--logfile", 
                       dest="logfile",
                       help="The name of the log file",
                       default=None)
-    parser.add_option("-o", 
-                      "--outputpath", 
-                      dest="outputpath",
-                      help="The directory into which to place files ready for uploading to data stores",
-                      default=None)
-    parser.add_option("--csv_dir", 
-                      type='string',
-                      dest="csv_dir",
-                      help="Directory of CSV file outputs from StartSpan.",
-                      default=None)
-
     parser.add_option('--config_file', 
                       type='string', 
                       dest='config_file',
                       metavar='FILE', 
                       help='Bulkload YAML config file.')
-    
-    parser.add_option('--filename', 
-                      type='string', 
-                      dest='filename',
-                      metavar='FILE', 
-                      help='CSV file with data to bulkload.')                      
-    
-    parser.add_option('--url', 
+    parser.add_option('--url',
                       type='string', 
                       dest='url',
-                      help='URL endpoint to /remote_api to bulkload to.')                          
-
+                      help='URL endpoint to /remote_api to bulkload to.')
     return parser.parse_args()[0]
 
 def main():
@@ -606,7 +587,7 @@ def main():
     if command == 'csv2appengine':
         '''Bulkloads all CSV files in a directory to App Engine datastore.'''
         cmd = 'appcfg.py upload_data --batch_size=%s --num_threads=%s --config_file=%s --filename=%s --kind CellIndex --url=%s'
-        os.chdir(options.csv_dir)
+        os.chdir(options.workspace)
         for csvfile in os.listdir('.'):
             if not csvfile.endswith('.csv'):
                 continue            
