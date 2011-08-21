@@ -317,7 +317,7 @@ def prepareworkspace(options):
     if not os.path.exists(options.workspace):
         os.mkdir(options.workspace)
         if not os.path.exists(options.workspace):
-            loccing.ingo('Unable to make workspace at %s.' % cleanpath)
+            logging.info('Unable to make workspace at %s.' % cleanpath)
             return False
     if len(os.listdir(options.workspace))>0:
         logging.info('Workspace %s not empty. Empty before proceeding. Make sure directory is not in use by other processes.' % options.workspace)
