@@ -629,6 +629,7 @@ def main():
             logging.info('Unable to prepare workspace %s.' % options.workspace)
         t1 = time.time()
         logging.info('Total elapsed time to prepareworkspace(): %s' % (t1-t0))
+        logging.info('Command %s complete.' % (command))
         sys.exit(1)
 
     if command=='getworldclimtile':
@@ -640,6 +641,7 @@ def main():
             sys.exit(0)
         t1 = time.time()
         logging.info('Total elapsed time to getworldclimtile(): %s' % (t1-t0))
+        logging.info('Command %s complete.' % (command))
         sys.exit(1)
 
     if command=='cliptileonly':
@@ -648,7 +650,7 @@ def main():
         t0 = time.time()
         if not prepareworkspace(options):
             logging.info('Unable to prepare workspace %s.' % options.workspace)
-            sys.exit(0)
+            ys.exit(0)
         t1 = time.time()
         logging.info('Total elapsed time to prepareworkspace(): %s' % (t1-t0))
 
@@ -657,6 +659,7 @@ def main():
         clippedtile = makeclippedtile(options)
         t1 = time.time()
         logging.info('Total elapsed time to makeclippedtile(): %s' % (t1-t0))
+        logging.info('Command %s complete.' % (command))
         sys.exit(1)
 
     if command=='batchcellstoshapes':
@@ -693,6 +696,7 @@ def main():
         clipcellbatchfiles(batchdir, clippingshape)
         t1 = time.time()
         logging.info('Total elapsed time to clipcellbatchfiles(): %s' % (t1-t0))
+        logging.info('Command %s complete.' % (command))
         sys.exit(1)
 
     if command=='starspan':
@@ -703,6 +707,7 @@ def main():
         starspanclippedcellbatchfiles(batchdir, options.vardir)
         t1 = time.time()
         logging.info('Total elapsed time to starspanclippedcellbatchfiles(): %s' % (t1-t0))
+        logging.info('Command %s complete.' % (command))
         sys.exit(1)
 
     if command=='starspan2couch':
@@ -723,6 +728,57 @@ def main():
         couchcsvdir2couchdb(couchdir, options.couchurl, options.database)
         t1 = time.time()
         logging.info('Total elapsed time to couchcsvdir2couchdb(): %s' % (t1-t0))
+        logging.info('Command %s complete.' % (command))
+        sys.exit(1)
+
+    if command=='tilesection2couchcsvs':
+        ''' Make sure Worlclim layers are in place for the Tile
+            before running this command.'''
+        batchdir = os.path.join(options.workspace,'batches')
+        couchdir = os.path.join(options.workspace,'forcouch')
+
+        if not prepareworkspace(options):
+            logging.info('Unable to prepare workspace.')
+            sys.exit(0)
+
+        logging.info('Beginning makeclippedtile()...create clipped Tile of area to process')
+        t0 = time.time()
+        clippedtile = makeclippedtile(options)
+        t1 = time.time()
+        logging.info('Total elapsed time to makeclippedtile(): %s' % (t1-t0))
+
+        if not os.path.exists(batchdir):
+            os.mkdir(batchdir)
+            if not os.path.exists(batchdir):
+                logging.info('Unable to make batch directory %s.' % batchdir) 
+                sys.exit(0)
+
+        logging.info('Beginning batchprocesscells()...')
+        t0 = time.time()
+        clippedtile.batchprocesscells(batchdir, options)
+        t1 = time.time()
+        logging.info('Total elapsed time to batchprocesscells(): %s' % (t1-t0))
+        
+        logging.info('Beginning clipcellbatchfiles()...')
+        t0 = time.time()
+        clippingshape = os.path.join(options.workspace,clippedtile.filename)
+        clipcellbatchfiles(batchdir, clippingshape)
+        t1 = time.time()
+        logging.info('Total elapsed time to clipcellbatchfiles(): %s' % (t1-t0))
+
+        logging.info('Beginning starspanclippedcellbatchfiles()...')
+        t0 = time.time()
+        starspanclippedcellbatchfiles(batchdir, options.vardir)
+        t1 = time.time()
+        logging.info('Total elapsed time to starspanclippedcellbatchfiles(): %s' % (t1-t0))
+
+        logging.info('Beginning starspancsvdir2couchcsvs()...')
+        t0 = time.time()
+        starspancsvdir2couchcsvs(batchdir, options.key, options.cells_per_degree, options.workspace)
+        t1 = time.time()
+        logging.info('Total elapsed time to starspancsvdir2couchcsvs(): %s' % (t1-t0))
+        logging.info('Command %s complete.' % (command))
+        
         sys.exit(1)
 
     if command=='full':
@@ -784,6 +840,7 @@ def main():
         couchcsvdir2couchdb(couchdir, options.couchurl, options.database)
         t1 = time.time()
         logging.info('Total elapsed time to couchcsvdir2couchdb(): %s' % (t1-t0))
+        logging.info('Command %s complete.' % (command))
         sys.exit(1)
 
     logging.info('Command %s not understood.' % command)
