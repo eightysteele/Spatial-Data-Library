@@ -113,9 +113,16 @@ def truncate(x, digits):
         x - the input float
         digits - the number of places of precision to the right of the decimal
     """
+    if x==0:
+        return '0'
+    if digits==0:
+        return str(int(round(x)))
     FORMAT = """.%sf"""
     format_x = FORMAT % str(int(digits))
-    return format(x, format_x)
+    a = format(x, format_x)
+    b = format(x, format_x).strip('0')
+    c = format(x, format_x).strip('0').strip('.')
+    return format(x, format_x).strip('0').strip('.')
 
 def createPlacemark(key, polygon):
     """Returns a KML placemark for a polygon as a string.
@@ -507,6 +514,26 @@ class RMGCell(object):
         w = truncate(RMGCell.west(x_index, y_index, cells_per_degree, a, inverse_flattening), digits)
         e = truncate(RMGCell.east(x_index, y_index, cells_per_degree, a, inverse_flattening), digits)
         return [(w, n), (w, s), (e, s), (e, n), (w, n)]
+
+    @staticmethod
+    def boundingbox(key, cells_per_degree=CELLS_PER_DEGREE, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
+        """Returns a boundingbox (list of Points) of the cell defined by the given key.
+
+        Arguments:
+            key - the unique identifier for a cell
+            cells_per_degree - the desired resolution of the grid
+            digits - the number of digits of precision to retain in the coordinates
+            a - the semi-major axis of the ellipsoid for the coordinate reference system
+            inverse_flattening - the inverse of the ellipsoid's flattening parameter
+        """
+        indexes = key.split('-')
+        x_index = int(indexes[0])
+        y_index = int(indexes[1])
+        n = truncate(RMGCell.north(y_index, cells_per_degree), digits)
+        s = truncate(RMGCell.south(y_index, cells_per_degree), digits)
+        w = truncate(RMGCell.west(x_index, y_index, cells_per_degree, a, inverse_flattening), digits)
+        e = truncate(RMGCell.east(x_index, y_index, cells_per_degree, a, inverse_flattening), digits)
+        return [(w, n), (e, s)]
 
     def __init__(self, x_index, y_index):
         self._x_index = x_index

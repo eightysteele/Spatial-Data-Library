@@ -211,6 +211,12 @@ class RMGTest(unittest.TestCase):
             polygon = RMGCell.polygon(key, cells_per_degree)
             print key+' '+str(polygon)
             
+    def test_truncate(self):
+        self.assertEqual(truncate(60,0), '60')
+        self.assertEqual(truncate(60.0000,0), '60')
+        self.assertEqual(truncate(60.0000000001,0), '60')
+        self.assertEqual(truncate(60.0000000001,4), '60')
+        
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     unittest.main()
