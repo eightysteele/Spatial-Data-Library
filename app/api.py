@@ -51,6 +51,76 @@ COUCHDB_URL = '%s:%s/%s/_design/%s/_view/%s' % \
      COUCHDB_DESIGN, 
      COUCHDB_VIEW)
 
+WC_ALIAS = dict(
+    tmean1='m1',
+    tmean2='m2',
+    tmean3='m3',
+    tmean4='m4',
+    tmean5='m5',
+    tmean6='m6',
+    tmean7='m7',
+    tmean8='m8',
+    tmean9='m9',
+    tmean10='m10',
+    tmean11='m11',
+    tmean12='m12',
+    tmin1='n1',
+    tmin2='n2',
+    tmin3='n3',
+    tmin4='n4',
+    tmin5='n5',
+    tmin6='n6',
+    tmin7='n7',
+    tmin8='n8',
+    tmin9='n9',
+    tmin10='n10',
+    tmin11='n11',
+    tmin12='n12',
+    tmax1='x1',
+    tmax2='x2',
+    tmax3='x3',
+    tmax4='x4',
+    tmax5='x5',
+    tmax6='x6',
+    tmax7='x7',
+    tmax8='x8',
+    tmax9='x9',
+    tmax10='x10',
+    tmax11='x11',
+    tmax12='x12',
+    prec1='p1',
+    prec2='p2',
+    prec3='p3',
+    prec4='p4',
+    prec5='p5',
+    prec6='p6',
+    prec7='p7',
+    prec8='p8',
+    prec9='p9',
+    prec10='p10',
+    prec11='p11',
+    prec12='p12',
+    alt='a',
+    bio1='b1',
+    bio2='b2',
+    bio3='b3',
+    bio4='b4',
+    bio5='b5',
+    bio6='b6',
+    bio7='b7',
+    bio8='b8',
+    bio9='b9',
+    bio10='b10',
+    bio11='b11',
+    bio12='b12',
+    bio13='b13',
+    bio14='b14',
+    bio15='b15',
+    bio16='b16',
+    bio17='b17',
+    bio18='b18',
+    bio19='b19' )
+
 # SI conversion functions for variable values
 SI_CONVERSIONS = dict(
     alt=lambda x: int(x),
@@ -149,22 +219,53 @@ class Cell(model.Model):
         return self.key().__cmp__(other.key())
 
 class CellIndex(model.Model): # parent=Cell, key_name=varname    
-    n = model.StringProperty('n', required=True) # variable name
-    v = model.IntegerProperty('v', required=True) # variable value
-    i0 = model.IntegerProperty()
-    i1 = model.IntegerProperty()
-    i2 = model.IntegerProperty()
-    i3 = model.IntegerProperty()
-    i4 = model.IntegerProperty()
-    i5 = model.IntegerProperty()
-    i6 = model.IntegerProperty()
-    i7 = model.IntegerProperty()
-    i8 = model.IntegerProperty()
-    i9 = model.IntegerProperty()
-    i10 = model.IntegerProperty()
-    i11 = model.IntegerProperty()
-    i12 = model.IntegerProperty()
-    i13 = model.IntegerProperty()
+    #n = model.StringProperty('n', required=True) # variable name
+    #v = model.IntegerProperty('v', required=True) # variable value
+    a0 = model.IntegerProperty()
+    a1 = model.IntegerProperty()
+    a2 = model.IntegerProperty()
+    a3 = model.IntegerProperty()
+    a4 = model.IntegerProperty()
+    a5 = model.IntegerProperty()
+    a6 = model.IntegerProperty()
+    a7 = model.IntegerProperty()
+    a8 = model.IntegerProperty()
+    a9 = model.IntegerProperty()
+    a10 = model.IntegerProperty()
+    a11 = model.IntegerProperty()
+    a12 = model.IntegerProperty()
+    a13 = model.IntegerProperty()
+
+    b10 = model.IntegerProperty()
+    b11 = model.IntegerProperty()
+    b12 = model.IntegerProperty()
+    b13 = model.IntegerProperty()
+    b14 = model.IntegerProperty()
+    b15 = model.IntegerProperty()
+    b16 = model.IntegerProperty()
+    b17 = model.IntegerProperty()
+    b18 = model.IntegerProperty()
+    b19 = model.IntegerProperty()
+    b110 = model.IntegerProperty()
+    b111 = model.IntegerProperty()
+    b112 = model.IntegerProperty()
+    b113 = model.IntegerProperty()
+
+    b120 = model.IntegerProperty()
+    b121 = model.IntegerProperty()
+    b122 = model.IntegerProperty()
+    b123 = model.IntegerProperty()
+    b124 = model.IntegerProperty()
+    b125 = model.IntegerProperty()
+    b126 = model.IntegerProperty()
+    b127 = model.IntegerProperty()
+    b128 = model.IntegerProperty()
+    b129 = model.IntegerProperty()
+    b1210 = model.IntegerProperty()
+    b1211 = model.IntegerProperty()
+    b1212 = model.IntegerProperty()
+    b1213 = model.IntegerProperty()
+
 
     @classmethod
     def search(cls, varname, within, pivot, limit, offset):
@@ -213,7 +314,7 @@ class CellValuesHandler(webapp.RequestHandler):
         Returns:
             A dictionary of cell key to CouchDBCell instance.
         """
-        logging.info(COUCHDB_URL)
+        logging.info('COUCHDB=%s' % COUCHDB_URL)
         response = urlfetch.fetch(
             url=COUCHDB_URL,
             payload=simplejson.dumps({'keys': list(cell_keys)}),
@@ -225,6 +326,7 @@ class CellValuesHandler(webapp.RequestHandler):
         for row in simplejson.loads(response.content).get('rows'):            
             key = row.get('key')
             value = row.get('value')
+            logging.info('VALUE=%s' % value)
             cells[key] = Cell(
                 id=key,
                 rev=value.get('rev'),
@@ -242,6 +344,7 @@ class CellValuesHandler(webapp.RequestHandler):
         Returns:
             A dictionary of cell key to CouchDBCell.
         """
+        logging.info(cell_keys)
         cells = {}
         
         # Get cached cells
@@ -304,20 +407,22 @@ class CellValuesHandler(webapp.RequestHandler):
         if not si:
             si = 'true' == self.request.get('si')
 
+        #logging.info('cell_keys=%s' % cell_keys)
+
         # Get cells by key
         cells = CellValuesHandler.getcells(cell_keys)        
         
         # Prepare results
         results = []                    
         for cellkey, cell in cells.iteritems():
-            logging.info('cellkey=%s, cell=%s' % (cellkey, cell))
+            logging.info(cell.varvals)
             varvals = simplejson.loads(cell.varvals)
             requested_varvals = {}
             
             # Prepare only requested variables
             if len(variable_names) > 0:
                 for name in variable_names:
-                    var = varvals.get(name)
+                    var = varvals.get(WC_ALIAS[name], None)
                     if not var: # Ignore invalid variable names
                         continue
                     val = None
@@ -355,29 +460,48 @@ class CellValuesHandler(webapp.RequestHandler):
         self.response.headers["Content-Type"] = "application/json"
         self.response.out.write(json)
 
-    def range_query(self, gte, lt, var, limit, offset):
-        if var == 'alt':
-            var_min = -454
-            var_max = 8550
-        elif var == 'bio1':
-            var_min = -269
-            var_max = 314
-        elif var == 'bio12':
-            var_min = 0
-            var_max = 9916
+    def range_query(self, ranges, limit, offset): #gte, lt, var, limit, offset):
+        variables = []
+
+        if len(ranges) > 1:
+            qry = "CellIndex.query(AND"
         else:
-            self.error(404)
+            qry = "CellIndex.query"
+
+        for r in ranges:
+            var = r[0]
+            variables.append(var)
+            gte = int(r[1])
+            lt = int(r[2])
+
+            if var == 'alt':
+                var_min = -454
+                var_max = 8550
+            elif var == 'bio1':
+                var_min = -269
+                var_max = 314
+            elif var == 'bio12':
+                var_min = 0
+                var_max = 9916
+            else:
+                self.error(404)
+                return
             
-        intervals = interval.get_query_intervals(var_min, var_max, gte, lt)
-        logging.info('var=%s, gte=%s, lt=%s' % (var, gte, lt))
+            var = WC_ALIAS.get(r[0])
+            intervals = interval.get_query_intervals(var_min, var_max, gte, lt)
+            logging.info('var=%s, gte=%s, lt=%s' % (var, gte, lt))
                 
-        # Build the query
-        qry = "CellIndex.query(AND(CellIndex.n == '%s', OR(" % var
-        for index,value in intervals.iteritems():
-            if not value or not index.startswith('i'):
-                continue
-            logging.info('index=%s, value=%s' % (index, value))
-            qry = '%sCellIndex.%s == %d,' % (qry, index, value)
+            # Build the query
+            qry = "%s(AND(OR(" % qry
+            #qry = "CellIndex.query(AND(CellIndex.n == '%s', OR(" % var
+            for index,value in intervals.iteritems():
+                if not value or not index.startswith('i'):
+                    continue
+                index = index.replace('i', var)
+                logging.info('index=%s, value=%s' % (index, value))
+                qry = '%sCellIndex.%s == %d,' % (qry, index, value)
+        
+        
         qry = '%s)))' % qry[:-1]
         logging.info('qry=%s' % qry)
         qry = eval(qry)
@@ -385,7 +509,7 @@ class CellValuesHandler(webapp.RequestHandler):
         logging.info(qry)
         results = qry.fetch(limit, offset=offset, keys_only=True)
         cell_keys = set([key.parent().id() for key in results])
-        self.process_cell_keys(cell_keys, variable_names=[var])
+        self.process_cell_keys(cell_keys, variable_names=variables)
 
     def post(self):
         """Handles a cell API request.
@@ -415,18 +539,42 @@ class CellValuesHandler(webapp.RequestHandler):
         bb_offset = self.request.get('bb_offset', None)
         limit = self.request.get_range('limit', min_value=1, max_value=100, default=10)
         offset = self.request.get_range('offset', min_value=0, default=0)
-        gte = self.request.get_range('gte', default=RANGE_DEFAULT)
-        lt = self.request.get_range('lt', default=RANGE_DEFAULT)
-        variable = self.request.get('var')
 
+        ranges = [r.split(',') for r in self.request.get_all('r')]
+        logging.info('ranges=%s' % ranges)
+
+        #gte = self.request.get_range('gte', default=RANGE_DEFAULT)
+        #lt = self.request.get_range('lt', default=RANGE_DEFAULT)
+        #variable = self.request.get('var', None)
+
+        # validate variable names
+        #if variable and not WC_ALIAS.get(variable, None): # TODO: Use dict for better performance
+        #    logging.error('Unknown variable name %s' % variable)
+        #    self.error(404)
+        #    return
+        for r in ranges:
+            var = r[0]
+            if not WC_ALIAS.get(var, None):
+                logging.error('Unknown variable names %s' % var)
+                self.error(404)
+                return
+        if v:
+            unknowns = [x for x in v.split(',') if not WC_ALIAS.get(x, None)]
+            if len(unknowns) > 0:
+                logging.error('Unknown variable names %s' % variable)
+                self.error(404)
+                return
+        
         # Handle range query and return
-        if gte is not RANGE_DEFAULT and lt is not RANGE_DEFAULT and variable:
-            self.range_query(gte, lt, variable, limit, offset)
+        #if gte is not RANGE_DEFAULT and lt is not RANGE_DEFAULT and variable:
+        if len(ranges) > 0:
+            self.range_query(ranges, limit, offset) #gte, lt, variable, limit, offset)
             return
 
         # Invalid request
         if not k and not xy and not bb:
             self.error(404)
+            logging.error('No k, xy, or bb')
             return
         
         # Get cell key unqiues
