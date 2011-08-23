@@ -143,6 +143,7 @@ def getmetadata(varlimits):
     metadata[var]={}
     metadata[var]['key']=var
     metadata[var]['name']='Altitude'
+    metadata[var]['alias']='a'
     metadata[var]['minval']=varlimits[var]['min']
     metadata[var]['maxval']=varlimits[var]['max']
     metadata[var]['unit']=ALTUNITS
@@ -154,6 +155,7 @@ def getmetadata(varlimits):
         metadata[var]={}
         metadata[var]['key']=var
         metadata[var]['name']='%s, %s' % (TEMPMETADATA['tmean'],MONTHS[str(i)])
+        metadata[var]['alias']='%s%s' % (VARDICT['tmean'],i)
         metadata[var]['minval']=varlimits[var]['min']
         metadata[var]['maxval']=varlimits[var]['max']
         metadata[var]['unit']=TEMPUNITS
@@ -164,6 +166,7 @@ def getmetadata(varlimits):
         metadata[var]={}
         metadata[var]['key']=var
         metadata[var]['name']='%s, %s' % (TEMPMETADATA['tmean'],MONTHS[str(i)])
+        metadata[var]['alias']='%s%s' % (VARDICT['tmin'],i)
         metadata[var]['minval']=varlimits[var]['min']
         metadata[var]['maxval']=varlimits[var]['max']
         metadata[var]['unit']=TEMPUNITS
@@ -174,6 +177,7 @@ def getmetadata(varlimits):
         metadata[var]={}
         metadata[var]['key']=var
         metadata[var]['name']='%s, %s' % (TEMPMETADATA['tmean'],MONTHS[str(i)])
+        metadata[var]['alias']='%s%s' % (VARDICT['tmax'],i)
         metadata[var]['minval']=varlimits[var]['min']
         metadata[var]['maxval']=varlimits[var]['max']
         metadata[var]['unit']=TEMPUNITS
@@ -184,6 +188,7 @@ def getmetadata(varlimits):
         metadata[var]={}
         metadata[var]['key']=var
         metadata[var]['name']='%s, %s' % (TEMPMETADATA['prec'],MONTHS[str(i)])
+        metadata[var]['alias']='%s%s' % (VARDICT['prec'],i)
         metadata[var]['minval']=varlimits[var]['min']
         metadata[var]['maxval']=varlimits[var]['max']
         metadata[var]['unit']=PRECUNITS
@@ -195,6 +200,7 @@ def getmetadata(varlimits):
         metadata[var]={}
         metadata[var]['key']=var
         metadata[var]['name']=VARMETADATA[var]['name']
+        metadata[var]['alias']='%s%s' % (VARDICT['bio'],i)
         metadata[var]['minval']=varlimits[var]['min']
         metadata[var]['maxval']=varlimits[var]['max']
         metadata[var]['unit']=VARMETADATA[var]['unit']
@@ -272,7 +278,14 @@ def main():
     options = _getoptions()
     
     metadata = getmetadata(knownvarlimits)
-    print simplejson.dumps(metadata)
+    
+    with open('worldclimmetadata.csv','w') as f:
+        dw = csv.DictWriter(f, ['key','alias','name','minval','maxval','unit','database','version','release','created','srs'], quotechar="'")
+        dw.writer.writerow(dw.fieldnames)
+        for key in metadata:
+            a=metadata[key]
+            dw.writerow(a)
+    f.close()
     sys.exit(1)
     
     varlimits = {}
