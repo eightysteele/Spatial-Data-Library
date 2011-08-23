@@ -83,7 +83,7 @@ def create_index(i):
     def wrapper(varval, bulkload_state):
         iname = 'i%s' % i
         varval = int(varval.split('.')[0])
-        varname = bulkload_state.current_dictionary['RID'].split('_')[0].lower()        
+        varname = bulkload_state.current_dictionary['RID'].split('_')[0].lower()    
         if varname == 'alt':
             var_min = -454
             var_max = 8550

@@ -56,4 +56,3 @@ SCRIPT_EXCEPTIONS = {
 def fix_sys_path():
   """Fix the sys.path to include our extra paths."""
   sys.path = EXTRA_PATHS + sys.path
-  print sys.path
