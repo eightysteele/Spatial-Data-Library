@@ -365,10 +365,10 @@ class CellValuesHandler(webapp.RequestHandler):
             elif response.status_code != 200:
                 return {}
 
-        except Exception as e:
-            logging.error(e)
+        except:
+            logging.error('Unable to contact CouchDB')
             return {}
-
+        
         cells = {}        
         for row in simplejson.loads(response.content).get('rows'):            
             key = row.get('key')
