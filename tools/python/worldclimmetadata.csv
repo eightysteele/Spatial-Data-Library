@@ -1,0 +1,69 @@
+key,alias,name,minval,maxval,unit,database,version,release,created,srs
+bio19,b19,Precipitation of Coldest Quarter,0,5162,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax12,x12,'Mean Temperature, December',-484,417,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax11,x11,'Mean Temperature, November',-403,404,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax10,x10,'Mean Temperature, October',-286,402,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio15,b15,Precipitation Seasonality (Coefficient of Variation),0,265,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec9,p9,'Precipitation, September',0,1231,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio10,b10,Mean Temperature of Warmest Quarter,-143,383,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio11,b11,Mean Temperature of Coldest Quarter,-521,289,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio5,b5,Max Temperature of Warmest Month,-96,490,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio13,b13,Precipitation of Wettest Month,0,2949,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio14,b14,Precipitation of Driest Month,0,752,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio4,b4,Temperature Seasonality (standard deviation *100),0,22721,deg C * 100,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio16,b16,Precipitation of Wettest Quarter,0,8019,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio17,b17,Precipitation of Driest Quarter,0,2495,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio18,b18,Precipitation of Warmest Quarter,0,6090,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec12,p12,'Precipitation, December',0,1041,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+alt,a,Altitude,-431,8233,m,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec10,p10,'Precipitation, October',0,1238,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec11,p11,'Precipitation, November',0,1109,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio2,b2,Mean Diurnal Range (Mean of monthly (max temp - min temp)),0,214,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin11,m11,'Mean Temperature, November',-483,269,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin10,m10,'Mean Temperature, October',-322,278,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin12,m12,'Mean Temperature, December',-553,270,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio9,b9,Mean Temperature of Driest Quarter,-521,366,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax9,x9,'Mean Temperature, September',-179,443,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio1,b1,Annual Mean Temperature,-290,320,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio6,b6,Min Temperature of Coldest Month,-573,258,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean9,t9,'Mean Temperature, September',-192,360,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean3,t3,'Mean Temperature, March',-465,337,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean2,t2,'Mean Temperature, February',-506,335,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean1,t1,'Mean Temperature, January',-536,340,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec8,p8,'Precipitation, August',0,2179,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean7,t7,'Mean Temperature, July',-193,394,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean6,t6,'Mean Temperature, June',-195,386,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean5,t5,'Mean Temperature, May',-264,363,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean4,t4,'Mean Temperature, April',-381,345,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec3,p3,'Precipitation, March',0,827,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec2,p2,'Precipitation, February',0,851,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec1,p1,'Precipitation, January',0,1003,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean8,t8,'Mean Temperature, August',-190,384,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec7,p7,'Precipitation, July',0,2949,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec6,p6,'Precipitation, June',0,2891,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec5,p5,'Precipitation, May',0,1312,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+prec4,p4,'Precipitation, April',0,924,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean12,t12,'Mean Temperature, December',-519,333,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio8,b8,Mean Temperature of Wettest Quarter,-285,378,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean11,t11,'Mean Temperature, November',-443,330,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmean10,t10,'Mean Temperature, October',-304,330,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin9,m9,'Mean Temperature, September',-258,316,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax8,x8,'Mean Temperature, August',-120,475,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio12,b12,Annual Precipitation,0,11401,mm,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin8,m8,'Mean Temperature, August',-260,313,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin5,m5,'Mean Temperature, May',-292,300,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin4,m4,'Mean Temperature, April',-398,286,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin7,m7,'Mean Temperature, July',-251,316,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin6,m6,'Mean Temperature, June',-253,325,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin1,m1,'Mean Temperature, January',-573,266,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio7,b7,Temperature Annual Range (BIO5-BIO6),0,725,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin3,m3,'Mean Temperature, March',-495,280,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmin2,m2,'Mean Temperature, February',-558,273,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax7,x7,'Mean Temperature, July',-134,490,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax6,x6,'Mean Temperature, June',-136,469,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax5,x5,'Mean Temperature, May',-236,442,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax4,x4,'Mean Temperature, April',-364,430,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax3,x3,'Mean Temperature, March',-449,423,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax2,x2,'Mean Temperature, February',-454,417,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+tmax1,x1,'Mean Temperature, January',-500,419,deg C * 10,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
+bio3,b3,Isothermality (BIO2/BIO7) (* 100),0,96,%,WorldClim,1.4,3,2006-01-04,+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs
