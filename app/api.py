@@ -19,11 +19,13 @@ __author__ = "Aaron Steele, Dave Vieglais, and John Wieczorek"
 """This module contains some shit."""
 
 # Standard Python imports:
+import base64
 from datetime import datetime
 import logging
 import os
 import simplejson
 import sys
+import urllib
 
 # Google App Engine imports:
 from google.appengine.api import mail, memcache, urlfetch
@@ -39,6 +41,7 @@ from ndb import query, model
 from ndb.query import OR, AND
 
 # CouchDb connection parameters:
+COUCHDB_COOKIE = 'void'
 COUCHDB_HOST = 'http://spatial.iriscouch.com'
 COUCHDB_PORT = 5984
 COUCHDB_DATABASE = 'worldclim'
@@ -282,6 +285,8 @@ class CellIndex(model.Model): # parent=Cell, key_name=varname
 class CellValuesHandler(webapp.RequestHandler):
     """Handler for cell value requests."""
 
+    COUCHDB_COOKIE = None
+
     @classmethod
     def fromds(cls, cell_keys):
         """Returns CouchDBCell entities from a datastore query on cell keys.
@@ -305,6 +310,22 @@ class CellValuesHandler(webapp.RequestHandler):
         return cells
 
     @classmethod
+    def setcouchcookie(cls):
+        # Set new cookie
+        logging.info('BAD COOKIE -- getting new one')
+        u,p = open('couchdb-creds.txt', 'r').read().split(':')
+        payload = urllib.urlencode(dict(name=u.strip(), password=p.strip()))
+        url = 'http://spatial.iriscouch.com:5984/_session'
+        r = urlfetch.fetch(
+            follow_redirects=False,
+            url=url,
+            payload=payload,
+            method=urlfetch.POST,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        cls.COUCHDB_COOKIE = r.headers['set-cookie']
+        logging.info('New cookie %s' % cls.COUCHDB_COOKIE)
+
+    @classmethod
     def fromcouchdb(cls, cell_keys):
         """Returns a list of CouchDBCell entities from a CouchDB query on cell keys.
         
@@ -315,13 +336,39 @@ class CellValuesHandler(webapp.RequestHandler):
             A dictionary of cell key to CouchDBCell instance.
         """
         logging.info('COUCHDB=%s' % COUCHDB_URL)
-        response = urlfetch.fetch(
-            url=COUCHDB_URL,
-            payload=simplejson.dumps({'keys': list(cell_keys)}),
-            method=urlfetch.POST,
-            headers={"Content-Type":"application/json"})
-        if response.status_code != 200:
+
+        if not cls.COUCHDB_COOKIE:
+            cls.setcouchcookie()
+
+        try:
+            response = urlfetch.fetch(
+                url=COUCHDB_URL,
+                payload=simplejson.dumps({'keys': list(cell_keys)}),
+                method=urlfetch.POST,
+                headers={"Content-Type":"application/json",
+                         "X-CouchDB-WWW-Authenticate": "Cookie",
+                         "Cookie": cls.COUCHDB_COOKIE})
+            logging.info('CONTENT=%s' % response.content)
+
+            if response.status_code == 401:
+                # Retry with new cookie since it expired
+                cls.setcouchcookie()            
+                response = urlfetch.fetch(
+                    url=COUCHDB_URL,
+                    payload=simplejson.dumps({'keys': list(cell_keys)}),
+                    method=urlfetch.POST,
+                    headers={"Content-Type":"application/json",
+                             "X-CouchDB-WWW-Authenticate": "Cookie",
+                             "Cookie": cls.COUCHDB_COOKIE})
+                logging.info('CONTENT=%s' % response.content)
+
+            elif response.status_code != 200:
+                return {}
+
+        except Exception as e:
+            logging.error(e)
             return {}
+
         cells = {}        
         for row in simplejson.loads(response.content).get('rows'):            
             key = row.get('key')
@@ -543,15 +590,6 @@ class CellValuesHandler(webapp.RequestHandler):
         ranges = [r.split(',') for r in self.request.get_all('r')]
         logging.info('ranges=%s' % ranges)
 
-        #gte = self.request.get_range('gte', default=RANGE_DEFAULT)
-        #lt = self.request.get_range('lt', default=RANGE_DEFAULT)
-        #variable = self.request.get('var', None)
-
-        # validate variable names
-        #if variable and not WC_ALIAS.get(variable, None): # TODO: Use dict for better performance
-        #    logging.error('Unknown variable name %s' % variable)
-        #    self.error(404)
-        #    return
         for r in ranges:
             var = r[0]
             if not WC_ALIAS.get(var, None):
@@ -561,7 +599,7 @@ class CellValuesHandler(webapp.RequestHandler):
         if v:
             unknowns = [x for x in v.split(',') if not WC_ALIAS.get(x, None)]
             if len(unknowns) > 0:
-                logging.error('Unknown variable names %s' % variable)
+                logging.error('Unknown variable names %s' % unknowns)
                 self.error(404)
                 return
         
@@ -609,8 +647,6 @@ class CellValuesHandler(webapp.RequestHandler):
         # Get variable names for response
         if v:
             variable_names = set([x.strip() for x in v.split(',')])
-        elif variable:
-            variable_names = [variable]
         else:
             variable_names = []
             

@@ -19,7 +19,11 @@ from setup_env import fix_sys_path
 fix_sys_path()
 
 # Python imports
+import csv
 import logging
+from optparse import OptionParser
+import os
+import simplejson
 
 # SDL imports
 from sdl import interval
@@ -34,11 +38,9 @@ from ndb import query, model
 def create_key():
     def wrapper(value, bulkload_state):
         '''Returns a CellIndex key with Cell as it's parent.'''
-        d = bulkload_state.current_dictionary
-        d['varname'] = d['RID'].split('_')[0]
         return transform.create_deep_key(
-            ('Cell', 'CellKey'),
-            ('CellIndex', 'varname'))(value, bulkload_state)
+            ('Cell', 'cellkey'),
+            ('CellIndex', 'cellkey'))(value, bulkload_state)
     return wrapper
 
 def create_cell_key():
@@ -75,30 +77,57 @@ def get_list(within, val):
     x = int(val.split('.')[0])
     return range(x - within, x + within + 1)
 
+cells = {}
+cells_loaded = {}
+
+def write_cellkey_csv(filename):
+    dr = csv.DictReader(open(filename, 'r'))
+    cells = {}
+
+    for row in dr:
+        cellkey = row['CellKey']
+        if not cells.has_key(cellkey):
+            cells[cellkey] = {}
+        varname = row['RID'].split('_')[0]
+        varval = row['avg_Band1'].split('.')[0]
+        cells[cellkey][varname] = varval
+
+    name, ext = os.path.splitext(filename)
+    dw = csv.DictWriter(open('%s.keys.csv' % name, 'w'), ['cellkey', 'varvals'])
+    dw.writeheader()
+    for k,v in cells.iteritems():
+        dw.writerow(dict(cellkey=k,varvals=simplejson.dumps(v)))
+    
+
 def create_index(i):
     """
     bio1 in [-269,314]
     bio12 in [0,9916]
     """
-    def wrapper(varval, bulkload_state):
-        iname = 'i%s' % i
-        varval = int(varval.split('.')[0])
-        varname = bulkload_state.current_dictionary['RID'].split('_')[0].lower()    
-        if varname == 'alt':
+    def wrapper(varvals, bulkload_state):
+        varvals = simplejson.loads(varvals)
+        varname, index = i.split('-')
+        iname = 'i%s' % index        
+        if varname == 'a':
             var_min = -454
             var_max = 8550
-        elif varname == 'bio1':
+            varval = int(varvals['alt'])
+        elif varname == 'b1':
             var_min = -269
             var_max = 314
-        elif varname == 'bio12':
+            varval = int(varvals['bio1'])
+        elif varname == 'b12':
             var_min = 0
             var_max = 9916
+            varval = int(varvals['bio12'])
         else:
+            logging.info('Unsupported range variable %s' % varname)
             return None
         intervals = interval.get_index_intervals(varval, var_min, var_max)
         for index,value in intervals.iteritems():
             if index == iname:
                 return value
+        logging.info('No %s range value for variable %s' % (iname, varname))
         return None
     return wrapper
         
@@ -112,3 +141,17 @@ def add_dynamic_properties(input_dict, instance, bulkload_state_copy):
     return instance
 
 
+def _getoptions():
+    ''' Parses command line options and returns them.'''
+    parser = OptionParser()
+    parser.add_option('--filename', 
+                      type='string', 
+                      dest='filename',
+                      metavar='FILE', 
+                      help='CSV file.')    
+    return parser.parse_args()[0]
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+    options = _getoptions()
+    write_cellkey_csv(options.filename)
