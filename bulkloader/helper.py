@@ -19,6 +19,7 @@ from setup_env import fix_sys_path
 fix_sys_path()
 
 # Python imports
+import copy
 import csv
 import logging
 from optparse import OptionParser
@@ -31,9 +32,24 @@ from sdl import interval
 # Goole App Engine imports
 from django.utils import simplejson
 from google.appengine.ext.bulkload import transform
+from google.appengine.ext import db
 
 # Datastore Plus imports
 from ndb import query, model
+
+def create_variable_json():
+    def wrapper(value, bulkload_state):
+        """Returns current_dictionary (a row in the CSV file) as JSON text."""
+        d = copy.deepcopy(bulkload_state.current_dictionary)
+        d = dict((k,v) for k,v in d.iteritems() if v and v != 'null')
+        d.pop('__record_number__') # We don't want this in the JSON!
+        return db.Text(simplejson.dumps(d))
+    return wrapper
+
+def lower():
+    def wrapper(value, bulkload_state):
+        return value.lower()
+    return wrapper
 
 def create_key():
     def wrapper(value, bulkload_state):
@@ -157,7 +173,18 @@ def _getoptions():
                       help='CSV file.')    
     return parser.parse_args()[0]
 
+def _transform_forcouch(csvfile):
+    dr = csv.DictReader(open(csvfile, 'r'), quotechar="'")
+    filename = '%s-jsonfix.csv' % os.path.splitext(csvfile)[0]
+    dwfile = open(filename, 'w')
+    dw = csv.DictWriter(dwfile, ['cellkey', 'doc'])
+    dw.writer.writerow(['cellkey', 'doc'])
+    for row in dr:
+        dw.writerow(dict(
+                cellkey=row['cellkey'], 
+                doc=simplejson.dumps(simplejson.loads(row['doc']))))
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     options = _getoptions()
-    write_cellkey_csv(options.filename)
+    _transform_forcouch(options.filename)

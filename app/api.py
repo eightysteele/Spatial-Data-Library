@@ -195,6 +195,9 @@ SI_CONVERSIONS = dict(
     tmin8=lambda x: int(x)/10.0,
     tmin9=lambda x: int(x)/10.0)
 
+class Variable(model.Model):
+    json = model.TextProperty('j')
+    
 class Cell(model.Model):
     """Models a CouchDB cell document.
 
@@ -286,6 +289,24 @@ class CellIndex(model.Model): # parent=Cell, key_name=varname
         results = qry.fetch(limit, offset=offset, keys_only=True)
         cell_keys = [key.parent().id() for key in results]
         return set(cell_keys)
+
+
+class VariablesApiHandler(webapp.RequestHandler):
+    def get(self):
+        self.post()
+
+    def post(self):
+        name = self.request.get('n', None)
+        if not name:
+            results = [simplejson.loads(x.json) for x in Variable.query().fetch()]
+        else:
+            keys = [model.Key('Variable', x) for x in name.split(',')]
+            results = [simplejson.loads(x.json) for x in model.get_multi(keys) if x is not None]
+        if len(results) == 0:
+            self.error(404)
+            return
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps(results))
 
 class CellValuesHandler(webapp.RequestHandler):
     """Handler for cell value requests."""
@@ -665,7 +686,8 @@ class CellValuesHandler(webapp.RequestHandler):
                                variable_names=variable_names)
 
 application = webapp.WSGIApplication(
-    [('/api/cells/values', CellValuesHandler),], debug=True)    
+    [('/api/cells/values', CellValuesHandler),
+     ('/api/variables', VariablesApiHandler),], debug=True)    
 
 def main():
     run_wsgi_app(application)

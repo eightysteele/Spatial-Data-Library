@@ -26,6 +26,21 @@ transformers:
       external_name: RID
       import_transform: transform.none_if_empty(str)
 
+- kind: Variable
+  connector: csv
+  connector_options:
+    encoding: utf_8
+  
+  property_map:
+    - property: __key__
+      external_name: key
+      import_transform: helper.lower()
+
+    - property: json
+      external_name: key
+      import_transform: helper.create_variable_json()
+
+
 - kind: CellIndex
   connector: csv
   connector_options:
@@ -35,14 +50,6 @@ transformers:
     - property: __key__
       external_name: cellkey
       import_transform: helper.create_key() 
-
-#    - property: n
-#      external_name: varname
-#      import_transform: helper.get_varname()
-
-#    - property: v
-#      external_name: avg_Band1
-#      import_transform: helper.get_varval()
 
     - property: av
       external_name: doc
