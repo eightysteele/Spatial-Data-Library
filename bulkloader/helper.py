@@ -99,27 +99,33 @@ def write_cellkey_csv(filename):
         dw.writerow(dict(cellkey=k,varvals=simplejson.dumps(v)))
     
 
+def get_varval(varname):
+    def wrapper(doc, bulkload_state):
+        return simplejson.loads(doc)['v'][varname]
+    return wrapper
+
 def create_index(i):
     """
     bio1 in [-269,314]
     bio12 in [0,9916]
     """
-    def wrapper(varvals, bulkload_state):
-        varvals = simplejson.loads(varvals)
+    def wrapper(doc, bulkload_state):
+        varvals = simplejson.loads(doc)['v']
         varname, index = i.split('-')
         iname = 'i%s' % index        
+        # TODO: Read varname ranges from /tools/python/worldclimmetadata.csv
         if varname == 'a':
-            var_min = -454
-            var_max = 8550
-            varval = int(varvals['alt'])
+            var_min = -431
+            var_max = 8233
+            varval = int(varvals['a'])
         elif varname == 'b1':
-            var_min = -269
-            var_max = 314
-            varval = int(varvals['bio1'])
+            var_min = -290
+            var_max = 320
+            varval = int(varvals['b1'])
         elif varname == 'b12':
             var_min = 0
-            var_max = 9916
-            varval = int(varvals['bio12'])
+            var_max = 11401
+            varval = int(varvals['b12'])
         else:
             logging.info('Unsupported range variable %s' % varname)
             return None
@@ -127,7 +133,7 @@ def create_index(i):
         for index,value in intervals.iteritems():
             if index == iname:
                 return value
-        logging.info('No %s range value for variable %s' % (iname, varname))
+        #logging.info('No %s range value for variable %s' % (iname, varname))
         return None
     return wrapper
         

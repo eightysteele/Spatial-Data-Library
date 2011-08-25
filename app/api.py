@@ -224,6 +224,11 @@ class Cell(model.Model):
 class CellIndex(model.Model): # parent=Cell, key_name=varname    
     #n = model.StringProperty('n', required=True) # variable name
     #v = model.IntegerProperty('v', required=True) # variable value
+
+    av = model.IntegerProperty()
+    b1v = model.IntegerProperty()
+    b12v = model.IntegerProperty()
+
     a0 = model.IntegerProperty()
     a1 = model.IntegerProperty()
     a2 = model.IntegerProperty()
@@ -348,7 +353,7 @@ class CellValuesHandler(webapp.RequestHandler):
                 headers={"Content-Type":"application/json",
                          "X-CouchDB-WWW-Authenticate": "Cookie",
                          "Cookie": cls.COUCHDB_COOKIE})
-            logging.info('CONTENT=%s' % response.content)
+            #logging.info('CONTENT=%s' % response.content)
 
             if response.status_code == 401:
                 # Retry with new cookie since it expired
@@ -373,7 +378,7 @@ class CellValuesHandler(webapp.RequestHandler):
         for row in simplejson.loads(response.content).get('rows'):            
             key = row.get('key')
             value = row.get('value')
-            logging.info('VALUE=%s' % value)
+            #logging.info('VALUE=%s' % value)
             cells[key] = Cell(
                 id=key,
                 rev=value.get('rev'),
@@ -462,7 +467,7 @@ class CellValuesHandler(webapp.RequestHandler):
         # Prepare results
         results = []                    
         for cellkey, cell in cells.iteritems():
-            logging.info(cell.varvals)
+            #logging.info(cell.varvals)
             varvals = simplejson.loads(cell.varvals)
             requested_varvals = {}
             
@@ -511,9 +516,9 @@ class CellValuesHandler(webapp.RequestHandler):
         variables = []
 
         if len(ranges) > 1:
-            qry = "CellIndex.query(AND"
+            qry = "CellIndex.query(AND("
         else:
-            qry = "CellIndex.query"
+            qry = "CellIndex.query(AND("
 
         for r in ranges:
             var = r[0]
@@ -522,14 +527,14 @@ class CellValuesHandler(webapp.RequestHandler):
             lt = int(r[2])
 
             if var == 'alt':
-                var_min = -454
-                var_max = 8550
+                var_min = -431
+                var_max = 8233
             elif var == 'bio1':
-                var_min = -269
-                var_max = 314
+                var_min = -290
+                var_max = 320
             elif var == 'bio12':
                 var_min = 0
-                var_max = 9916
+                var_max = 11401
             else:
                 self.error(404)
                 return
@@ -539,7 +544,7 @@ class CellValuesHandler(webapp.RequestHandler):
             logging.info('var=%s, gte=%s, lt=%s' % (var, gte, lt))
                 
             # Build the query
-            qry = "%s(AND(OR(" % qry
+            qry = "%sOR(" % qry
             #qry = "CellIndex.query(AND(CellIndex.n == '%s', OR(" % var
             for index,value in intervals.iteritems():
                 if not value or not index.startswith('i'):
@@ -547,9 +552,14 @@ class CellValuesHandler(webapp.RequestHandler):
                 index = index.replace('i', var)
                 logging.info('index=%s, value=%s' % (index, value))
                 qry = '%sCellIndex.%s == %d,' % (qry, index, value)
+             
+            if len(ranges) > 1:
+                qry = '%s), ' % qry[:-1]
         
-        
-        qry = '%s)))' % qry[:-1]
+        if len(ranges) > 1:
+            qry = '%s)))' % qry[:-3]
+        else:
+            qry = '%s))) ' % qry[:-1]
         logging.info('qry=%s' % qry)
         qry = eval(qry)
 
