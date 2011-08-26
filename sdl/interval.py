@@ -20,6 +20,10 @@ import math
 from collections import defaultdict
  
 def get_indexes(val,min,max,res):
+    if val<min:
+        return None
+    if val>max:
+        return None
     newval = int(math.floor(val/res))
     newmin = int(math.floor(min/res))
     newmax = int(math.ceil(max/res))
@@ -27,8 +31,9 @@ def get_indexes(val,min,max,res):
     intervals = []
     for n in range(category_count):
         index = newval-(newval-newmin)%(pow(2,n))
-#        print 'n %s start %s end %s' % (n, index, index + int(pow(2,n)))
         intervals.append(index)
+    if category_count == 0:
+        intervals.append(val)
     return intervals
 
 def get_index_intervals(val,min,max,res=1):
@@ -60,6 +65,8 @@ def get_index_intervals(val,min,max,res=1):
             i9=-46 [-460,4660} 512
     '''
     intervals = get_indexes(val,min,max,res)
+    if intervals is None:
+        return None
     indexes = dict()
     j = 0
     for i in intervals:
@@ -67,8 +74,8 @@ def get_index_intervals(val,min,max,res=1):
         indexes[index]=i
         j += 1
     return indexes
-
-def get_query_intervals(min, max, gte, lt):
+    
+def get_query_intervals(min, max, gte, lt, res):
     ''' Returns a dictionary of interval:value-lists that need to be queried to get cells having a variable value within a given range.
 
         Arguments:
@@ -76,6 +83,7 @@ def get_query_intervals(min, max, gte, lt):
             max - the maximum value of the variable range (e.g., 8850m for altitude)
             gte - the bottom end of the range of values to include in the results
             lt - an integer one greater than the top end of the range of values include in results
+            res - the resolution of the desired intervals (e.g., 1 means every meter, 10 means every 10 meters)
             
         Example:
             Altitudes between 315 and 330 (greater than or equal to 315, less than 329).
@@ -83,84 +91,52 @@ def get_query_intervals(min, max, gte, lt):
             i1=316,326 [316,318} and [326,328} 2
             i2=318,322 [318,322} and [322,326} 4
     '''
+    if lt<=gte:
+        return None
+    if gte>max:
+        return None
+    if lt<=min:
+        return None
     ''' Clamp gte and lt to min and max values of the variable.'''
     if gte<min:
         gte=min
     if lt>max:
-        lt=max
+        lt=max+1
         
-    indexes = defaultdict(list)
-    ''' Power of 2 for the difference between max and min.'''
-    n = int(math.floor(math.log( (lt-gte), 2)))
-    ''' m is the magic starting value between min and max.''' 
-    m = min+int(math.pow(2,n)*int(math.floor((lt-min)/math.pow(2,n))))
-    ''' top is the difference between m and the top of the range.'''
-    top = lt-m
-    ''' bottom is the difference between m and the bottom of the range.'''
-    bottom = m-gte
-    diff = bottom
-    ''' Iterate through the differences from m to the bottom of the range.'''
-    while diff > 0:
-        n = int(math.floor(math.log( diff, 2)))
-        m=m-int(math.pow(2,n))
-        ''' Add the value to the list of values for the interval.'''
-        indexes['i%s' % n].append(m)
-        diff = m-gte
-    m=lt-top
-    diff=top
-
-    ''' Iterate through the differences from m to the top of the range.'''
-    while diff > 0:
-        n = int(math.floor(math.log( diff, 2)))
-        ''' Add the value to the list of values for the interval.'''
-        indexes['i%s' % n].append(m)
-        m=m+int(math.pow(2,n))
-        diff = lt-m
-        
-    dupe=False
-    newindexes=defaultdict()
-    for index in indexes:
-        v = indexes[index]
-        if len(indexes[index])>1:
-                dupe=True
-                break
-    if dupe is True:
-        n = int(math.ceil(math.log((top),2)))
-        newindexes['e']=int(math.pow(2,n))-top
-        newindexes['i%s' % n]=lt-top
-    for index in indexes:
-        v = indexes[index][0]
-        if dupe is True:
-            if indexes[index][0]<lt-top:
-                newindexes[index]=indexes[index][0]
-        else:
-            newindexes[index]=indexes[index][0]
-    return newindexes
+    indexes = defaultdict()
+    ''' Start with the lower limit of the range.'''
+    cursor = gte
+    while cursor < lt:
+        ''' Get the index list for the current "cursor" in the range.'''
+        intervals=get_indexes(cursor,min,max,res)
+        i=0
+        ''' diff is the distance from the cursor to the top of the range.'''
+        diff = lt-cursor
+        ''' Seek the first index for in the list that is not equal to the cursor.'''
+        while i<len(intervals) and intervals[i]==cursor and math.pow(2,i)<=diff:
+            i += 1
+            ''' i is now the index for the highest entry in the intervals list 
+                for the value given by cursor that has an interval that is not bigger than diff.
+            '''
+        ''' Decrement to get the last index that has a value equal to the cursor.'''
+        i -= 1
+        ''' Find the first index from i that hasn't already been added to the indexes dict.'''
+        while indexes.has_key('i%s' % i) is True:
+            i += 1
+        ''' Add this index to the indexes dict.'''
+        indexes['i%s' % i]=cursor
+        ''' Increment the cursor for the power of two for the inde just added.'''
+        cursor += int(math.pow(2,i))
+    ''' When finished adding indexes, if the last one takes the range beyond the upper limit,
+        add an error indicator that holds the value of how far over the range the last interval went.
+    '''
+    if cursor-lt>0:
+        indexes['e']=cursor-lt
+    return indexes
     
 def main():
     intervals = get_query_intervals(-454, 8850, 315, 328)
     print intervals
-
-    intervals = get_query_intervals(-454, 8850, 315, 329)
-    print intervals
-
-    intervals = get_query_intervals(-454, 8850, 315, 330)
-    print intervals
-
-#    intervals = get_query_intervals(-20, 40, -21, 41)
-#    print intervals
-#    
-#    intervals = get_query_intervals(-20, 40, 10, 20)
-#    print intervals
-#    
-#    indexes = get_index_intervals(14,-20,40,1)
-#    print indexes
-#
-#    indexes = get_index_intervals(320,-454,8550,1)
-#    print indexes
-#
-#    indexes = get_index_intervals(320,-454,8550,10)
-#    print indexes
 
 if __name__ == "__main__":
     main()
