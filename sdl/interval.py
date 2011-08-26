@@ -75,7 +75,7 @@ def get_index_intervals(val,min,max,res=1):
         j += 1
     return indexes
     
-def get_query_intervals(min, max, gte, lt, res):
+def get_query_intervals(min, max, gte, lt, res=1):
     ''' Returns a dictionary of interval:value-lists that need to be queried to get cells having a variable value within a given range.
 
         Arguments:
