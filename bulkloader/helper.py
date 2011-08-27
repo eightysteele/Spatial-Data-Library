@@ -146,8 +146,8 @@ def create_index(i):
             logging.info('Unsupported range variable %s' % varname)
             return None
         intervals = interval.get_index_intervals(varval, var_min, var_max)
-        if intervals is None:
-            logging.info('Intervals is None for varname: %s varval: %s var_min: %s var_max: %s' % (varname, varval, var_min, var_max))
+        if len(intervals)==0:
+            logging.info('No intervals for varname: %s varval: %s var_min: %s var_max: %s' % (varname, varval, var_min, var_max))
         else:
             for index,value in intervals.iteritems():
                 if index == iname:

@@ -67,10 +67,10 @@ class IntervalTest(unittest.TestCase):
         self.assertEqual(indexes.has_key('i1'), False)
 
         indexes = get_index_intervals(-1,0,1,1)
-        self.assertEqual(indexes, None)
+        self.assertEqual(len(indexes), 0)
 
         indexes = get_index_intervals(2,0,1,1)
-        self.assertEqual(indexes, None)
+        self.assertEqual(len(indexes), 0)
 
         indexes = get_index_intervals(0,0,2,1)
         self.assertEqual(indexes['i0'], 0)
@@ -103,6 +103,15 @@ class IntervalTest(unittest.TestCase):
         self.assertEqual(indexes['i0'], 3)
         self.assertEqual(indexes['i1'], 2)
         self.assertEqual(indexes.has_key('i2'), False)
+
+        intervals = get_query_intervals(-20, 40, 41, 42, 1)
+        self.assertEqual(len(intervals), 0)
+
+        intervals = get_query_intervals(-20, 40, -22, -21, 1)
+        self.assertEqual(len(intervals), 0)
+
+        intervals = get_query_intervals(-20, 40, 41, 42, 1)
+        self.assertEqual(len(intervals), 0)
 
         intervals = get_query_intervals(-20, 40, -21, 41, 1)
         self.assertEqual(intervals['i0'], 40)

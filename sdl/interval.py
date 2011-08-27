@@ -21,9 +21,9 @@ from collections import defaultdict
  
 def get_indexes(val,min,max,res):
     if val<min:
-        return None
+        return []
     if val>max:
-        return None
+        return []
     newval = int(math.floor(val/res))
     newmin = int(math.floor(min/res))
     newmax = int(math.ceil(max/res))
@@ -65,8 +65,6 @@ def get_index_intervals(val,min,max,res=1):
             i9=-46 [-460,4660} 512
     '''
     intervals = get_indexes(val,min,max,res)
-    if intervals is None:
-        return None
     indexes = dict()
     j = 0
     for i in intervals:
@@ -92,11 +90,11 @@ def get_query_intervals(min, max, gte, lt, res=1):
             i2=318,322 [318,322} and [322,326} 4
     '''
     if lt<=gte:
-        return None
+        return {}
     if gte>max:
-        return None
+        return {}
     if lt<=min:
-        return None
+        return {}
     ''' Clamp gte and lt to min and max values of the variable.'''
     if gte<min:
         gte=min
@@ -135,7 +133,18 @@ def get_query_intervals(min, max, gte, lt, res=1):
     return indexes
     
 def main():
-    intervals = get_query_intervals(-454, 8850, 315, 328)
+    indexes = get_index_intervals(145,-431,8233,1)
+    for i in range(len(indexes)):
+        print 'i%s:%s'%(i,indexes['i%s'%i])
+    intervals = get_query_intervals(-431, 8233, 0, 141, 1)
+    print intervals
+    intervals = get_query_intervals(-431, 8233, 0, 142, 1)
+    print intervals
+    intervals = get_query_intervals(-431, 8233, 0, 143, 1)
+    print intervals
+    intervals = get_query_intervals(-431, 8233, 0, 144, 1)
+    print intervals
+    intervals = get_query_intervals(-431, 8233, 0, 145, 1)
     print intervals
 
 if __name__ == "__main__":
