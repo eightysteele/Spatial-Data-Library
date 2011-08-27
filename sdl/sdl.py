@@ -39,8 +39,8 @@ import sys
 from rmg import *
 
 VARDICT = {'tmean':'t', 'tmin':'m', 'tmax':'x', 'alt':'a', 'bio':'b', 'prec':'p'}
-#OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
-OGR2OGR = '/usr/local/bin/ogr2ogr'
+OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
+#OGR2OGR = '/usr/local/bin/ogr2ogr'
 
 class Cell(object):
     ''' A cell described by a key, a polygon, and a grid resolution defined by

@@ -563,6 +563,8 @@ class CellValuesHandler(webapp.RequestHandler):
             var = WC_ALIAS.get(r[0])
             intervals = interval.get_query_intervals(var_min, var_max, gte, lt)
             logging.info('var=%s, gte=%s, lt=%s' % (var, gte, lt))
+            logging.info('Intervals: %s' % intervals)
+            logging.info('varmin: %s varmax: %s gte: %s lt: %s' %(var_min, var_max, gte, lt))
                 
             # Build the query
             qry = "%sOR(" % qry
