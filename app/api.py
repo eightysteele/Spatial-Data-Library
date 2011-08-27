@@ -565,6 +565,11 @@ class CellValuesHandler(webapp.RequestHandler):
             logging.info('var=%s, gte=%s, lt=%s' % (var, gte, lt))
             logging.info('Intervals: %s' % intervals)
             logging.info('varmin: %s varmax: %s gte: %s lt: %s' %(var_min, var_max, gte, lt))
+
+            if len(intervals) == 0:
+                self.error(404)
+                logging.info('No query possible')
+                return
                 
             # Build the query
             qry = "%sOR(" % qry
