@@ -16,7 +16,7 @@
 
 __author__ = "Aaron Steele, Dave Vieglais, and John Wieczorek"
 
-"""This module contains some shit."""
+"""This module contains some stuff."""
 
 # Standard Python imports:
 import base64
