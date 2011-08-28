@@ -39,8 +39,8 @@ import sys
 from rmg import *
 
 VARDICT = {'tmean':'t', 'tmin':'m', 'tmax':'x', 'alt':'a', 'bio':'b', 'prec':'p'}
-OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
-#OGR2OGR = '/usr/local/bin/ogr2ogr'
+#OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
+OGR2OGR = '/usr/local/bin/ogr2ogr'
 
 class Cell(object):
     ''' A cell described by a key, a polygon, and a grid resolution defined by
@@ -585,6 +585,35 @@ def main():
                     filemode='w')    
 
     if command == 'csv2appengine':
+        '''Bulkloads all CSV files in a directory to App Engine datastore.'''
+        cmd = 'appcfg.py upload_data --batch_size=%s --num_threads=%s --config_file=%s --filename=%s --kind CellIndex --url=%s'
+        os.chdir(os.path.join(options.workspace, 'forcouch'))
+        for csvfile in os.listdir('.'):
+            if not csvfile.endswith('.csv') or csvfile.endswith('jsonfix.csv'):
+                continue            
+            dr = csv.DictReader(open(csvfile, 'r'), quotechar="'")
+            filename = '%s-jsonfix.csv' % os.path.splitext(csvfile)[0]
+            dwfile = open(filename, 'w')
+            dw = csv.DictWriter(dwfile, ['cellkey', 'doc'])
+            dw.writeheader()
+            for row in dr:
+                dw.writerow(dict(
+                        cellkey=row['cellkey'], 
+                        doc=simplejson.dumps(simplejson.loads(row['doc']))))
+            dwfile.flush()
+            dwfile.close()
+            cmd_line = cmd % (
+                1,
+                5,
+                os.path.abspath(options.config_file),
+                os.path.abspath(filename),
+                options.url)            
+            print cmd_line
+            args = shlex.split(cmd_line)
+            subprocess.call(args)            
+        sys.exit(1)
+
+    if command == 'tilecsvs2appengine':
         '''Bulkloads all CSV files in a directory to App Engine datastore.'''
         cmd = 'appcfg.py upload_data --batch_size=%s --num_threads=%s --config_file=%s --filename=%s --kind CellIndex --url=%s'
         os.chdir(os.path.join(options.workspace, 'forcouch'))

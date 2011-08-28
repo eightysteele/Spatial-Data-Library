@@ -23,14 +23,9 @@ import sys
 import os
 import unittest
 
-#sys.path = [os.path.abspath(os.path.realpath('../'))] + sys.path
 sys.path.insert(0, '../')
 
 from sdl.rmg import *
-#from sdl.rmg import Point
-#from sdl.rmg import RMGCell
-#from sdl.rmg import RMGCell
-#from sdl.rmg import Point
 
 a = 6378137.0 # WGS84 semi-major axis
 inverse_flattening = 298.257223563 # WGS84 inverse flattening
@@ -216,7 +211,14 @@ class RMGTest(unittest.TestCase):
         self.assertEqual(truncate(60.0000,0), '60')
         self.assertEqual(truncate(60.0000000001,0), '60')
         self.assertEqual(truncate(60.0000000001,4), '60')
-        
+        self.assertEqual(truncate(0.9666666667,4), '0.9667')
+
+#    def test1(self):
+#        key='13800-10684'
+#        cells_per_degree=120
+#        polygon = RMGCell.polygon(key, cells_per_degree)
+#        print 'key: %s polygon: %s' % (key, polygon)
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     unittest.main()
