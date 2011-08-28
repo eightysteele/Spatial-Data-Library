@@ -16,7 +16,7 @@
 
 __author__ = "Aaron Steele, Dave Vieglais, and John Wieczorek"
 
-"""This module contains some shit."""
+"""This module contains some stuff."""
 
 # Standard Python imports:
 import base64
@@ -565,6 +565,11 @@ class CellValuesHandler(webapp.RequestHandler):
             logging.info('var=%s, gte=%s, lt=%s' % (var, gte, lt))
             logging.info('Intervals: %s' % intervals)
             logging.info('varmin: %s varmax: %s gte: %s lt: %s' %(var_min, var_max, gte, lt))
+
+            if len(intervals) == 0:
+                self.error(404)
+                logging.info('No query possible')
+                return
                 
             # Build the query
             qry = "%sOR(" % qry
