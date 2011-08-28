@@ -492,6 +492,8 @@ def cellbatchshapefile2statscsv(shapefile, vardir):
                      if x.endswith('.bil')]
     variables = reduce(lambda x,y: '%s %s' % (x, y), variables)
     csvfile = shapefile.replace('.shp', '.csv')
+    if os.path.exists(csvfile):
+      return None
     # Call starspan requesting mean of variable, excluding nodata values (-9999 in the file is the same as 55537)
     # starspan -- vector 0-clipped.shp --raster tmean
     command = 'starspan --vector %s --raster %s --stats %s avg --nodata 55537' \
