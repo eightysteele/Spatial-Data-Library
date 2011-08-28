@@ -119,10 +119,7 @@ def truncate(x, digits):
         return str(int(round(x)))
     FORMAT = """.%sf"""
     format_x = FORMAT % str(int(digits))
-    a = format(x, format_x)
-    b = format(x, format_x).strip('0')
-    c = format(x, format_x).strip('0').strip('.')
-    return format(x, format_x).strip('0').strip('.')
+    return format(x, format_x).rstrip('0').rstrip('.')
 
 def createPlacemark(key, polygon):
     """Returns a KML placemark for a polygon as a string.

@@ -16,14 +16,16 @@
 
 __author__ = "Aaron Steele, Dave Vieglais, and John Wieczorek"
 
-"""This module contains some shit."""
+"""This module contains some stuff."""
 
 # Standard Python imports:
+import base64
 from datetime import datetime
 import logging
 import os
 import simplejson
 import sys
+import urllib
 
 # Google App Engine imports:
 from google.appengine.api import mail, memcache, urlfetch
@@ -39,6 +41,7 @@ from ndb import query, model
 from ndb.query import OR, AND
 
 # CouchDb connection parameters:
+COUCHDB_COOKIE = 'void'
 COUCHDB_HOST = 'http://spatial.iriscouch.com'
 COUCHDB_PORT = 5984
 COUCHDB_DATABASE = 'worldclim'
@@ -192,6 +195,9 @@ SI_CONVERSIONS = dict(
     tmin8=lambda x: int(x)/10.0,
     tmin9=lambda x: int(x)/10.0)
 
+class Variable(model.Model):
+    json = model.TextProperty('j')
+    
 class Cell(model.Model):
     """Models a CouchDB cell document.
 
@@ -221,6 +227,11 @@ class Cell(model.Model):
 class CellIndex(model.Model): # parent=Cell, key_name=varname    
     #n = model.StringProperty('n', required=True) # variable name
     #v = model.IntegerProperty('v', required=True) # variable value
+
+    av = model.IntegerProperty()
+    b1v = model.IntegerProperty()
+    b12v = model.IntegerProperty()
+
     a0 = model.IntegerProperty()
     a1 = model.IntegerProperty()
     a2 = model.IntegerProperty()
@@ -279,8 +290,28 @@ class CellIndex(model.Model): # parent=Cell, key_name=varname
         cell_keys = [key.parent().id() for key in results]
         return set(cell_keys)
 
+
+class VariablesApiHandler(webapp.RequestHandler):
+    def get(self):
+        self.post()
+
+    def post(self):
+        name = self.request.get('n', None)
+        if not name:
+            results = [simplejson.loads(x.json) for x in Variable.query().fetch()]
+        else:
+            keys = [model.Key('Variable', x) for x in name.split(',')]
+            results = [simplejson.loads(x.json) for x in model.get_multi(keys) if x is not None]
+        if len(results) == 0:
+            self.error(404)
+            return
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps(results))
+
 class CellValuesHandler(webapp.RequestHandler):
     """Handler for cell value requests."""
+
+    COUCHDB_COOKIE = None
 
     @classmethod
     def fromds(cls, cell_keys):
@@ -305,6 +336,22 @@ class CellValuesHandler(webapp.RequestHandler):
         return cells
 
     @classmethod
+    def setcouchcookie(cls):
+        # Set new cookie
+        logging.info('BAD COOKIE -- getting new one')
+        u,p = open('couchdb-creds.txt', 'r').read().split(':')
+        payload = urllib.urlencode(dict(name=u.strip(), password=p.strip()))
+        url = 'http://spatial.iriscouch.com:5984/_session'
+        r = urlfetch.fetch(
+            follow_redirects=False,
+            url=url,
+            payload=payload,
+            method=urlfetch.POST,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        cls.COUCHDB_COOKIE = r.headers['set-cookie']
+        logging.info('New cookie %s' % cls.COUCHDB_COOKIE)
+
+    @classmethod
     def fromcouchdb(cls, cell_keys):
         """Returns a list of CouchDBCell entities from a CouchDB query on cell keys.
         
@@ -315,18 +362,44 @@ class CellValuesHandler(webapp.RequestHandler):
             A dictionary of cell key to CouchDBCell instance.
         """
         logging.info('COUCHDB=%s' % COUCHDB_URL)
-        response = urlfetch.fetch(
-            url=COUCHDB_URL,
-            payload=simplejson.dumps({'keys': list(cell_keys)}),
-            method=urlfetch.POST,
-            headers={"Content-Type":"application/json"})
-        if response.status_code != 200:
+
+        if not cls.COUCHDB_COOKIE:
+            cls.setcouchcookie()
+
+        try:
+            response = urlfetch.fetch(
+                url=COUCHDB_URL,
+                payload=simplejson.dumps({'keys': list(cell_keys)}),
+                method=urlfetch.POST,
+                headers={"Content-Type":"application/json",
+                         "X-CouchDB-WWW-Authenticate": "Cookie",
+                         "Cookie": cls.COUCHDB_COOKIE})
+            #logging.info('CONTENT=%s' % response.content)
+
+            if response.status_code == 401:
+                # Retry with new cookie since it expired
+                cls.setcouchcookie()            
+                response = urlfetch.fetch(
+                    url=COUCHDB_URL,
+                    payload=simplejson.dumps({'keys': list(cell_keys)}),
+                    method=urlfetch.POST,
+                    headers={"Content-Type":"application/json",
+                             "X-CouchDB-WWW-Authenticate": "Cookie",
+                             "Cookie": cls.COUCHDB_COOKIE})
+                logging.info('CONTENT=%s' % response.content)
+
+            elif response.status_code != 200:
+                return {}
+
+        except:
+            logging.error('Unable to contact CouchDB')
             return {}
+        
         cells = {}        
         for row in simplejson.loads(response.content).get('rows'):            
             key = row.get('key')
             value = row.get('value')
-            logging.info('VALUE=%s' % value)
+            #logging.info('VALUE=%s' % value)
             cells[key] = Cell(
                 id=key,
                 rev=value.get('rev'),
@@ -415,7 +488,7 @@ class CellValuesHandler(webapp.RequestHandler):
         # Prepare results
         results = []                    
         for cellkey, cell in cells.iteritems():
-            logging.info(cell.varvals)
+            #logging.info(cell.varvals)
             varvals = simplejson.loads(cell.varvals)
             requested_varvals = {}
             
@@ -464,9 +537,9 @@ class CellValuesHandler(webapp.RequestHandler):
         variables = []
 
         if len(ranges) > 1:
-            qry = "CellIndex.query(AND"
+            qry = "CellIndex.query(AND("
         else:
-            qry = "CellIndex.query"
+            qry = "CellIndex.query(AND("
 
         for r in ranges:
             var = r[0]
@@ -475,14 +548,14 @@ class CellValuesHandler(webapp.RequestHandler):
             lt = int(r[2])
 
             if var == 'alt':
-                var_min = -454
-                var_max = 8550
+                var_min = -431
+                var_max = 8233
             elif var == 'bio1':
-                var_min = -269
-                var_max = 314
+                var_min = -290
+                var_max = 320
             elif var == 'bio12':
                 var_min = 0
-                var_max = 9916
+                var_max = 11401
             else:
                 self.error(404)
                 return
@@ -490,9 +563,16 @@ class CellValuesHandler(webapp.RequestHandler):
             var = WC_ALIAS.get(r[0])
             intervals = interval.get_query_intervals(var_min, var_max, gte, lt)
             logging.info('var=%s, gte=%s, lt=%s' % (var, gte, lt))
+            logging.info('Intervals: %s' % intervals)
+            logging.info('varmin: %s varmax: %s gte: %s lt: %s' %(var_min, var_max, gte, lt))
+
+            if len(intervals) == 0:
+                self.error(404)
+                logging.info('No query possible')
+                return
                 
             # Build the query
-            qry = "%s(AND(OR(" % qry
+            qry = "%sOR(" % qry
             #qry = "CellIndex.query(AND(CellIndex.n == '%s', OR(" % var
             for index,value in intervals.iteritems():
                 if not value or not index.startswith('i'):
@@ -500,9 +580,14 @@ class CellValuesHandler(webapp.RequestHandler):
                 index = index.replace('i', var)
                 logging.info('index=%s, value=%s' % (index, value))
                 qry = '%sCellIndex.%s == %d,' % (qry, index, value)
+             
+            if len(ranges) > 1:
+                qry = '%s), ' % qry[:-1]
         
-        
-        qry = '%s)))' % qry[:-1]
+        if len(ranges) > 1:
+            qry = '%s)))' % qry[:-3]
+        else:
+            qry = '%s))) ' % qry[:-1]
         logging.info('qry=%s' % qry)
         qry = eval(qry)
 
@@ -543,15 +628,6 @@ class CellValuesHandler(webapp.RequestHandler):
         ranges = [r.split(',') for r in self.request.get_all('r')]
         logging.info('ranges=%s' % ranges)
 
-        #gte = self.request.get_range('gte', default=RANGE_DEFAULT)
-        #lt = self.request.get_range('lt', default=RANGE_DEFAULT)
-        #variable = self.request.get('var', None)
-
-        # validate variable names
-        #if variable and not WC_ALIAS.get(variable, None): # TODO: Use dict for better performance
-        #    logging.error('Unknown variable name %s' % variable)
-        #    self.error(404)
-        #    return
         for r in ranges:
             var = r[0]
             if not WC_ALIAS.get(var, None):
@@ -561,7 +637,7 @@ class CellValuesHandler(webapp.RequestHandler):
         if v:
             unknowns = [x for x in v.split(',') if not WC_ALIAS.get(x, None)]
             if len(unknowns) > 0:
-                logging.error('Unknown variable names %s' % variable)
+                logging.error('Unknown variable names %s' % unknowns)
                 self.error(404)
                 return
         
@@ -609,8 +685,6 @@ class CellValuesHandler(webapp.RequestHandler):
         # Get variable names for response
         if v:
             variable_names = set([x.strip() for x in v.split(',')])
-        elif variable:
-            variable_names = [variable]
         else:
             variable_names = []
             
@@ -619,7 +693,8 @@ class CellValuesHandler(webapp.RequestHandler):
                                variable_names=variable_names)
 
 application = webapp.WSGIApplication(
-    [('/api/cells/values', CellValuesHandler),], debug=True)    
+    [('/api/cells/values', CellValuesHandler),
+     ('/api/variables', VariablesApiHandler),], debug=True)    
 
 def main():
     run_wsgi_app(application)
