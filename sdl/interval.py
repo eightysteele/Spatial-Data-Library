@@ -131,7 +131,32 @@ def get_query_intervals(min, max, gte, lt, res=1):
     if cursor-lt>0:
         indexes['e']=cursor-lt
     return indexes
-    
+
+def get_optimum_query_interval(min, max, gte, lt, res=1):
+    ''' 
+        Returns a dictionary containing the single interval:value that needs to be queried to 
+        get cells having a variable value within a given range. 
+
+        Arguments:
+            min - the minimum value of the variable range, starting value for the intervals for a variable (e.g., -454m for altitude) 
+            max - the maximum value of the variable range (e.g., 8850m for altitude)
+            gte - the bottom end of the range of values to include in the results
+            lt - an integer one greater than the top end of the range of values include in results
+            res - the resolution of the desired intervals (e.g., 1 means every meter, 10 means every 10 meters)
+            
+        Example:
+            Altitudes between 315 and 330 (greater than or equal to 315, less than 329).
+            i0=315,328 [315,316} and [328,329} 1
+            i1=316,326 [316,318} and [326,328} 2
+            i2=318,322 [318,322} and [322,326} 4
+    '''
+    diff = lt - gte
+    nextpow2 = int(math.ceil(math.log(diff,2)))+1
+    intervals = get_indexes(gte,min,max,res)
+    start = intervals[nextpow2]
+    end = start + int(pow(2,nextpow2))
+    return get_query_intervals(min, max, start, end, res)
+
 def main():
     indexes = get_index_intervals(145,-431,8233,1)
     for i in range(len(indexes)):

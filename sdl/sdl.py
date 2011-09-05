@@ -39,8 +39,6 @@ import sys
 from rmg import *
 
 VARDICT = {'tmean':'t', 'tmin':'m', 'tmax':'x', 'alt':'a', 'bio':'b', 'prec':'p'}
-#OGR2OGR='/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
-OGR2OGR = '/usr/local/bin/ogr2ogr'
 
 class Cell(object):
     ''' A cell described by a key, a polygon, and a grid resolution defined by
@@ -195,24 +193,25 @@ class Tile(object):
         w.save(filename)        
         return filename
 
-    def clip(self, shapefile, workspace):
+    def clip(self, options):
         ''' Creates a new shapefile in the workspace that is the intersection of 
             this Tile and the given shapefile. Returns a Tile clipped by shapefile.
         
             Arguments:
-                shapefile - the shapefile to clip by the boundaries of the Tile
-                workspace - the directory in which to store the clipped shape file
+                options - the options parsed from the command line. Uses:
+                    gadm - the shapefile to clip to (polygon of are containing Worldclim data)
+                    workspace - the directory in which to store the clipped shape file
         '''
         t0 = time.time()
-        this = self.writetileshapefile(workspace)
+        this = self.writetileshapefile(options.workspace)
         clipped = this.replace('.shp', '-clipped.shp')
-        logging.info('Beginning clipping of %s by %s.' % (shapefile, this))
-        command = '%s -clipsrc %s %s %s' % (OGR2OGR, this, clipped, shapefile)
+        logging.info('Beginning clipping of %s by %s.' % (options.gadm, this))
+        command = '%s -clipsrc %s %s %s' % (options.ogr2ogr_path, this, clipped, options.gadm)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
         t1 = time.time()
-        logging.info('%s clipped by %s in %s' % (shapefile, this, t1-t0))
+        logging.info('%s clipped by %s in %s' % (options.gadm, this, t1-t0))
         return Tile(self.key, self.nwcorner, self.secorner, self.cells_per_degree, self.digits, self.a, self.inverse_flattening, clipped)
 
     def writetileshapefile(self, workspace):
@@ -274,7 +273,7 @@ def makeclippedtile(options):
                 gadm - the shapefile to clip to (polygon of are containing Worldclim data)
     '''
     tile = maketile(options)
-    return tile.clip(options.gadm, options.workspace)
+    return tile.clip(options)
 
 def getpolygon(key, cells_per_degree, digits=DEGREE_DIGITS, a=SEMI_MAJOR_AXIS, inverse_flattening=INVERSE_FLATTENING):
     '''Returns a polygon (list of Points) of the cell defined by the given key.
@@ -445,16 +444,16 @@ def couchcsv2couchdb(csvfile, couchurl, database):
     return True
 
 ### Clip cell batch shape files ###
-def clipcellbatchfiles(batchdir, cliptoshapefile):
+def clipcellbatchfiles(batchdir, cliptoshapefile, options):
     if not os.path.exists(batchdir):
         logging.info('Unable to find cell batch directory %s.' % batchdir)
         return False
     os.chdir(batchdir)
     for f in glob.glob("*.shp"):
-        clipcellbatchshapefile(f,cliptoshapefile)
+        clipcellbatchshapefile(f,cliptoshapefile, options)
     return True
     
-def clipcellbatchshapefile(cellbatchshapefile, cliptoshapefile):
+def clipcellbatchshapefile(cellbatchshapefile, cliptoshapefile, options):
     ''' Creates a new shapefile that is the intersection of the src file 
         and the given shapefile. Returns the name of the clipped shapefile.
         
@@ -463,7 +462,7 @@ def clipcellbatchshapefile(cellbatchshapefile, cliptoshapefile):
             cliptoshapefile - the shapefile to intersect with the src
     '''
     clipped = cellbatchshapefile.replace('.shp', '-clipped.shp')
-    command = '%s -clipsrc %s %s %s' % (OGR2OGR, cliptoshapefile, clipped, cellbatchshapefile)
+    command = '%s -clipsrc %s %s %s' % (options.ogr2ogr_path, cliptoshapefile, clipped, cellbatchshapefile)
     logging.info(command)
     args = shlex.split(command)
     subprocess.call(args)
@@ -562,6 +561,11 @@ def _getoptions():
                       dest='config_file',
                       metavar='FILE', 
                       help='Bulkload YAML config file.')
+    parser.add_option("-o", 
+                      "--ogr2ogr_path", 
+                      dest="ogr2ogr_path",
+                      help="The absolute path to ogr2ogr.",
+                      default=None)
     parser.add_option('--url',
                       type='string', 
                       dest='url',
@@ -585,6 +589,16 @@ def main():
                     format='%(asctime)s %(levelname)s %(message)s',
                     filename=logfile,
                     filemode='w')    
+
+
+    # For Macs which have GDAL.framework, we can autodetect it
+    # and use it automatically.
+    if options.ogr2ogr_path is None:
+        options.ogr2ogr_path = '/Library/Frameworks/GDAL.framework/Programs/ogr2ogr'
+    if not os.path.exists(options.ogr2ogr_path):
+        # We don't have a path to use; let subprocess.call
+        # find it.
+        options.ogr2ogr_path = 'ogr2ogr'
 
     if command == 'csv2appengine':
         '''Bulkloads all CSV files in a directory to App Engine datastore.'''
@@ -715,7 +729,7 @@ def main():
         logging.info('Beginning clipcellbatchfiles()...')
         t0 = time.time()
         clippingshape = os.path.join(options.workspace,clippedtile.filename)
-        clipcellbatchfiles(batchdir, clippingshape)
+        clipcellbatchfiles(batchdir, clippingshape, options)
         t1 = time.time()
         logging.info('Total elapsed time to clipcellbatchfiles(): %s' % (t1-t0))
         logging.info('Command %s complete.' % (command))
@@ -784,7 +798,7 @@ def main():
         logging.info('Beginning clipcellbatchfiles()...')
         t0 = time.time()
         clippingshape = os.path.join(options.workspace,clippedtile.filename)
-        clipcellbatchfiles(batchdir, clippingshape)
+        clipcellbatchfiles(batchdir, clippingshape, options)
         t1 = time.time()
         logging.info('Total elapsed time to clipcellbatchfiles(): %s' % (t1-t0))
 
@@ -841,7 +855,7 @@ def main():
         logging.info('Beginning clipcellbatchfiles()...')
         t0 = time.time()
         clippingshape = os.path.join(options.workspace,clippedtile.filename)
-        clipcellbatchfiles(batchdir, clippingshape)
+        clipcellbatchfiles(batchdir, clippingshape, options)
         t1 = time.time()
         logging.info('Total elapsed time to clipcellbatchfiles(): %s' % (t1-t0))
 
