@@ -151,7 +151,7 @@ def get_optimum_query_interval(min, max, gte, lt, res=1):
             i2=318,322 [318,322} and [322,326} 4
     '''
     diff = lt - gte
-    nextpow2 = int(math.ceil(math.log(diff,2)))+1
+    nextpow2 = int(math.ceil(math.log(diff,2)))
     intervals = get_indexes(gte,min,max,res)
     start = intervals[nextpow2]
     end = start + int(pow(2,nextpow2))

@@ -31,28 +31,19 @@ class IntervalTest(unittest.TestCase):
 #        min=-90000
 #        max=90000
         res=1
-        min=-180
-        max=180
-        gte=0
-        lt=2
-        seekme=150
-        intervals = get_indexes(seekme,min,max,res)
-        print 'len %s i %s intervals %s' % (len(intervals), seekme, intervals)
-#        for i in range(max):
-#            intervals = get_indexes(i,min,max,1)
-#            print 'i %s intervals %s' % (i, intervals)
-        gte = 150
-        lt = 165
-        diff = lt - gte
-        nextpow2 = int(math.ceil(math.log(diff,2)))+1
-        intervals = get_indexes(gte,min,max,res)
-        start = intervals[nextpow2]
-        end = start + int(pow(2,nextpow2))
+#        min=-90000  
+#        max=90000
+#        gte=-85051
+        min=-90
+        max=90
+        gte=-85
+        lt=0
+        diff = lt-gte
         
+        intervals = get_indexes(0,min,max,1)
+        print 'intervals: %s' % intervals
         indexes = get_query_intervals(min,max,gte,lt)
         print 'diff %s gte %s lt %s len %s indexes %s' % (diff, gte, lt, len(indexes), indexes)
-        indexes = get_query_intervals(min,max,start,end)
-        print 'diff %s gte %s lt %s len %s indexes %s' % (nextpow2, start, end, len(indexes), indexes)
         indexes = get_optimum_query_interval(min,max,gte,lt)
         print 'Optimal interval gte %s lt %s len %s indexes %s' % (gte, lt, len(indexes), indexes)
         
