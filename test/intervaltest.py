@@ -41,18 +41,22 @@ class IntervalTest(unittest.TestCase):
 #        max= 9000000
 #        gte= 6651326
 #        lt=  8505113
-#        min=-18000000  
-#        max= 18000000
-#        gte=  9000000
-#        lt=  18000000
-        min=-180 
-        max= 180
-        gte=  90
-        lt=  180
+        min=-18000000  
+        max= 18000000
+        gte=  9000000
+        lt=  18000000
+#        min=-9000000
+#        max= 9000000
+#        gte= 6651326
+#        lt=  8505113
+#        min= 0
+#        max=16
+#        gte= 7
+#        lt= 13
         diff = lt-gte
         
         intervals = get_indexes(0,min,max,1)
-        print 'intervals: %s' % intervals
+        print 'intervals: len %s %s' % (len(intervals), intervals)
         indexes = get_query_intervals(min,max,gte,lt)
         print 'diff %s gte %s lt %s len %s indexes %s' % (diff, gte, lt, len(indexes), indexes)
         indexes = get_optimum_query_interval(min,max,gte,lt)

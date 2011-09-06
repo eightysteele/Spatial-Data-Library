@@ -34,6 +34,7 @@ def get_indexes(val,min,max,res):
         intervals.append(index)
     if category_count == 0:
         intervals.append(val)
+    intervals.append(min)
     return intervals
 
 def get_index_intervals(val,min,max,res=1):
@@ -150,11 +151,19 @@ def get_optimum_query_interval(min, max, gte, lt, res=1):
             i1=316,326 [316,318} and [326,328} 2
             i2=318,322 [318,322} and [322,326} 4
     '''
+
+    gte_intervals = get_indexes(gte,min,max,res)
+    lt_intervals = get_indexes(lt,min,max,res)
+    
     diff = lt - gte
     nextpow2 = int(math.ceil(math.log(diff,2)))
     intervals = get_indexes(gte,min,max,res)
     start = intervals[nextpow2]
     end = start + int(pow(2,nextpow2))
+    while end < lt:
+        nextpow2 += 1
+        start = intervals[nextpow2]
+        end = start + pow(2,nextpow2)
     return get_query_intervals(min, max, start, end, res, True)
 
 def main():
