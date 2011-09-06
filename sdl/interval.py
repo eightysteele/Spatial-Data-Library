@@ -73,7 +73,7 @@ def get_index_intervals(val,min,max,res=1):
         j += 1
     return indexes
     
-def get_query_intervals(min, max, gte, lt, res=1):
+def get_query_intervals(min, max, gte, lt, res=1, opt=False):
     ''' Returns a dictionary of interval:value-lists that need to be queried to get cells having a variable value within a given range.
 
         Arguments:
@@ -98,7 +98,7 @@ def get_query_intervals(min, max, gte, lt, res=1):
     ''' Clamp gte and lt to min and max values of the variable.'''
     if gte<min:
         gte=min
-    if lt>max:
+    if not opt and lt>max:
         lt=max+1
         
     indexes = defaultdict()
@@ -155,7 +155,7 @@ def get_optimum_query_interval(min, max, gte, lt, res=1):
     intervals = get_indexes(gte,min,max,res)
     start = intervals[nextpow2]
     end = start + int(pow(2,nextpow2))
-    return get_query_intervals(min, max, start, end, res)
+    return get_query_intervals(min, max, start, end, res, True)
 
 def main():
     indexes = get_index_intervals(145,-431,8233,1)
