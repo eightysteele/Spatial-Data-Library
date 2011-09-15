@@ -206,7 +206,7 @@ class Tile(object):
         this = self.writetileshapefile(options.workspace)
         clipped = this.replace('.shp', '-clipped.shp')
         logging.info('Beginning clipping of %s by %s.' % (options.gadm, this))
-        command = '%s -clipsrc %s %s %s' % (options.ogr2ogr_path, this, clipped, options.gadm)
+        command = '%s -skipfailures -clipsrc %s %s %s' % (options.ogr2ogr_path, this, clipped, options.gadm)
         logging.info(command)
         args = shlex.split(command)
         subprocess.call(args)
@@ -384,7 +384,7 @@ def starspancsv2couchcsv(csvfile, key, cells_per_degree, workspace):
     try:
         firstkey = drf.next().get('CellKey')
     except:
-        logging.info('File %s had no intersection cells.' % csvfile)
+        logging.info('File %s had no intersecting cells.' % csvfile)
         return None
     cells = {}
     dr = csv.DictReader(open(csvfile, 'r'))
@@ -466,7 +466,7 @@ def clipcellbatchshapefile(cellbatchshapefile, cliptoshapefile, options):
             cliptoshapefile - the shapefile to intersect with the src
     '''
     clipped = cellbatchshapefile.replace('.shp', '-clipped.shp')
-    command = '%s -clipsrc %s %s %s' % (options.ogr2ogr_path, cliptoshapefile, clipped, cellbatchshapefile)
+    command = '%s -skipfailures -clipsrc %s %s %s' % (options.ogr2ogr_path, cliptoshapefile, clipped, cellbatchshapefile)
     logging.info(command)
     args = shlex.split(command)
     subprocess.call(args)
