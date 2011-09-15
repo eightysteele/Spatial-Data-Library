@@ -190,6 +190,16 @@ class RMGTest(unittest.TestCase):
         key = RMGCell.key(lng, lat, cells_per_degree)
         print 'lat: '+str(lat) +' lng: '+str(lng) + ' key: '+key
 
+        key='25029-10798'
+        polygon = RMGCell.polygon(key, cells_per_degree)
+        center = RMGCell.center(key)
+        print 'key: %s center: %s polygon: %s' % (key, center, polygon)
+
+        key='25030-10798'
+        polygon = RMGCell.polygon(key, cells_per_degree)
+        center = RMGCell.center(key)
+        print 'key: %s center: %s polygon: %s' % (key, center, polygon)
+
         key='26567-10800'
         polygon = RMGCell.polygon(key, cells_per_degree)
         center = RMGCell.center(key)

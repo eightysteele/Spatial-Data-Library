@@ -381,7 +381,11 @@ def starspancsv2couchcsv(csvfile, key, cells_per_degree, workspace):
     '''
     cells_per_degree = float(cells_per_degree)
     drf = csv.DictReader(open(csvfile, 'r'))
-    firstkey = drf.next().get('CellKey')
+    try:
+        firstkey = drf.next().get('CellKey')
+    except:
+        logging.info('File %s had no intersection cells.' % csvfile)
+        return None
     cells = {}
     dr = csv.DictReader(open(csvfile, 'r'))
     for row in dr:
