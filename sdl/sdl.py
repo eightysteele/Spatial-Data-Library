@@ -310,6 +310,10 @@ def translatevariable(varval):
     newval = float(varval)
     if newval > 55537: # Actual value is a negative number greater than the nodata value of -9999
         newval = newval - 65536
+    elif newval > 32000: 
+        # Actual value is a negative number. Caused by starspan mean of unsigned int when one 
+        # value is positive and the other negative.
+        newval = newval * 2 - 65536
     return int(round(newval))
 
 def prepareworkspace(options):
@@ -498,13 +502,17 @@ def cellbatchshapefile2statscsv(shapefile, vardir):
     if os.path.exists(csvfile):
       return None
     # Call starspan requesting mean of variable, excluding nodata values (-9999 in the file is the same as 55537)
-    # starspan -- vector 0-clipped.shp --raster tmean
+    # Example: starspan --vector 0-clipped.shp --raster tmean
     command = 'starspan --vector %s --raster %s --stats %s avg --nodata 55537' \
         % (shapefile, variables, csvfile)
 #        command = 'starspan --vector %s --raster %s --stats %s avg stdev min max --nodata 55537' \
 #            % (shapefile, variables, csvfile)
     args = shlex.split(command)
-    subprocess.call(args)
+    try:
+        subprocess.call(args)
+    except:
+        logging.info('command %s failed.' % command)
+        return None
     return csvfile
 
 def _getoptions():
