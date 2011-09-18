@@ -370,6 +370,7 @@ def starspancsvdir2couchcsvs(batchdir, key, cells_per_degree, workspace):
         return
     os.chdir(batchdir)
     for f in glob.glob("*.csv"):
+        logging.info('Making %s for couchdb' % f )
         starspancsv2couchcsv(f,key,cells_per_degree,workspace)
 
 def starspancsv2couchcsv(csvfile, key, cells_per_degree, workspace):
@@ -429,6 +430,7 @@ def couchcsvdir2couchdb(couchdir, couchurl, database):
         os.mkdir(couchdir)
     os.chdir(couchdir)
     for f in glob.glob("*.csv"):
+        logging.info('Sending %s to %s:%s' % (f,couchurl,database))
         if not couchcsv2couchdb(f,couchurl,database):
             logging.info('Failed to load %s to %s database %s.' % (f, couchurl, database))
 
