@@ -614,62 +614,83 @@ def main():
         # find it.
         options.ogr2ogr_path = 'ogr2ogr'
 
-    if command == 'csv2appengine':
-        '''Bulkloads all CSV files in a directory to App Engine datastore.'''
-        cmd = 'appcfg.py upload_data --batch_size=%s --num_threads=%s --config_file=%s --filename=%s --kind CellIndex --url=%s'
-        os.chdir(os.path.join(options.workspace, 'forcouch'))
-        for csvfile in os.listdir('.'):
-            if not csvfile.endswith('.csv') or csvfile.endswith('jsonfix.csv'):
-                continue            
-            dr = csv.DictReader(open(csvfile, 'r'), quotechar="'")
-            filename = '%s-jsonfix.csv' % os.path.splitext(csvfile)[0]
-            dwfile = open(filename, 'w')
-            dw = csv.DictWriter(dwfile, ['cellkey', 'doc'])
-            dw.writeheader()
-            for row in dr:
-                dw.writerow(dict(
-                        cellkey=row['cellkey'], 
-                        doc=simplejson.dumps(simplejson.loads(row['doc']))))
-            dwfile.flush()
-            dwfile.close()
-            cmd_line = cmd % (
-                1,
-                5,
-                os.path.abspath(options.config_file),
-                os.path.abspath(filename),
-                options.url)            
-            print cmd_line
-            args = shlex.split(cmd_line)
-            subprocess.call(args)            
-        sys.exit(1)
+#    if command == 'csv2appengine':
+#        '''Bulkloads all CSV files in a directory to App Engine datastore.'''
+#        cmd = 'appcfg.py upload_data --batch_size=%s --num_threads=%s --config_file=%s --filename=%s --kind CellIndex --url=%s'
+#        os.chdir(os.path.join(options.workspace, 'forcouch'))
+#        for csvfile in os.listdir('.'):
+#            if not csvfile.endswith('.csv') or csvfile.endswith('jsonfix.csv'):
+#                continue            
+#            dr = csv.DictReader(open(csvfile, 'r'), quotechar="'")
+#            filename = '%s-jsonfix.csv' % os.path.splitext(csvfile)[0]
+#            dwfile = open(filename, 'w')
+#            dw = csv.DictWriter(dwfile, ['cellkey', 'doc'])
+#            dw.writeheader()
+#            for row in dr:
+#                dw.writerow(dict(
+#                        cellkey=row['cellkey'], 
+#                        doc=simplejson.dumps(simplejson.loads(row['doc']))))
+#            dwfile.flush()
+#            dwfile.close()
+#            cmd_line = cmd % (
+#                1,
+#                5,
+#                os.path.abspath(options.config_file),
+#                os.path.abspath(filename),
+#                options.url)            
+#            print cmd_line
+#            args = shlex.split(cmd_line)
+#            subprocess.call(args)            
+#        sys.exit(1)
 
     if command == 'tilecsvs2appengine':
-        '''Bulkloads all CSV files in a directory to App Engine datastore.'''
+        ''' Bulkloads all CSV files for a Tile to App Engine datastore.
+            Assumes all files for loading are in locations matching:
+            Tile[nn-i]/forcouch/*.csv
+            where nn is the tile key and i is a tile section run number.
+            options.workspace should be the directory containing these Tile section subdirectories.
+            '''
+        if options.config_file is None:
+            sys.exit(0)
+            
         cmd = 'appcfg.py upload_data --batch_size=%s --num_threads=%s --config_file=%s --filename=%s --kind CellIndex --url=%s'
-        os.chdir(os.path.join(options.workspace, 'forcouch'))
-        for csvfile in os.listdir('.'):
-            if not csvfile.endswith('.csv') or csvfile.endswith('jsonfix.csv'):
-                continue            
-            dr = csv.DictReader(open(csvfile, 'r'), quotechar="'")
-            filename = '%s-jsonfix.csv' % os.path.splitext(csvfile)[0]
-            dwfile = open(filename, 'w')
-            dw = csv.DictWriter(dwfile, ['cellkey', 'doc'])
-            dw.writeheader()
-            for row in dr:
-                dw.writerow(dict(
-                        cellkey=row['cellkey'], 
-                        doc=simplejson.dumps(simplejson.loads(row['doc']))))
-            dwfile.flush()
-            dwfile.close()
-            cmd_line = cmd % (
-                1,
-                5,
-                os.path.abspath(options.config_file),
-                os.path.abspath(filename),
-                options.url)            
-            print cmd_line
-            args = shlex.split(cmd_line)
-            subprocess.call(args)            
+
+        os.chdir(options.workspace)
+        if options.key is None:
+            match = 'Tile*'
+        else:
+            match = 'Tile%s*' % options.key
+        for tiledir in glob.glob(match):
+            print tiledir
+            couchdir = os.path.join(tiledir, 'forcouch')
+            for csvfile in glob.glob(os.path.join(couchdir,'*.csv')):
+                print csvfile
+                if csvfile.find('-jsonfix.csv') == -1:
+                    dr = csv.DictReader(open(csvfile, 'r'), quotechar="'")
+                    filename = '%s-jsonfix.csv' % os.path.splitext(csvfile)[0]
+                    dwfile = open(filename, 'w')
+                    fieldnames = ['cellkey', 'doc']
+                    dw = csv.DictWriter(dwfile, fieldnames, quotechar="'")
+                    dw.writer.writerow(dw.fieldnames)
+    #                dw = csv.DictWriter(dwfile, ['cellkey', 'doc'])
+    #                dw.writeheader()
+                    for row in dr:
+                        dw.writerow(dict(
+                                         cellkey=row['cellkey'], 
+                                         doc=simplejson.dumps(simplejson.loads(row['doc']))))
+                    dwfile.flush()
+                    dwfile.close()
+                    cf = os.path.abspath(options.config_file)
+                    fn = os.path.abspath(filename)
+                    cmd_line = cmd % (
+                        1,
+                        5,
+                        os.path.abspath(options.config_file),
+                        os.path.abspath(filename),
+                        options.url)            
+                    print cmd_line
+                    args = shlex.split(cmd_line)
+                    subprocess.call(args)
         sys.exit(1)
 
     if command=='prepareworkspace':
@@ -769,7 +790,7 @@ def main():
         t1 = time.time()
         logging.info('Total elapsed time to starspancsvdir2couchcsvs(): %s' % (t1-t0))
         sys.exit(1)
-                
+
     if command=='couchfromcsvs':
         couchdir = os.path.join(options.workspace,'forcouch')
         
