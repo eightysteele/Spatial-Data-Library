@@ -630,7 +630,7 @@ def main():
         if options.key is None:
             match = 'Tile*'
         else:
-            match = 'Tile%s*' % options.key
+            match = 'Tile%s-*' % options.key
         for tiledir in glob.glob(match):
             print tiledir
             couchdir = os.path.join(tiledir, 'forcouch')
