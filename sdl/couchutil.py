@@ -81,19 +81,25 @@ class Couch:
         prettyPrint(r)
 
     def listViewDocs(self, dbName, viewName):
-        """List all documents in a given database"""
+        """List all documents in a given view"""
 
         r = self.get(''.join(['/', dbName, '/', viewName]))
         return r
 
+    def listSomeViewDocs(self, dbName, viewName, startkey, limit):
+        """List from a view a number of documents given by 'limit' starting at startkey"""
+        uri = ''.join(['/', dbName, '/', viewName, '/', '?includedocs=false&startkey=', startkey, '&limit=', str(limit)])
+        r = self.get(uri)
+        return r
+
     def getDoc(self, dbName, docId):
         """Return a document in a given database"""
-        r = self.get(''.join(['/', dbName, '/', docId,]))
+        r = self.get(''.join(['/', dbName, '/', docId]))
         return getJson(r)
     
     def openDoc(self, dbName, docId):
         """Open a document in a given database"""
-        r = self.get(''.join(['/', dbName, '/', docId,]))
+        r = self.get(''.join(['/', dbName, '/', docId]))
         prettyPrint(r)
 
     def saveDoc(self, dbName, body, docId=None):
@@ -190,7 +196,30 @@ def execute(options):
     couch = couchdb.Server(options.couchurl)['vertnet']
     # Handles deleted records:
     DeletedRecords(conn, couch).execute(chunksize)
-    
+
+def bulkDelete(options):
+    t0 = time.time()
+    cdb = couchdb.Server(options.couchurl)
+    database = cdb[options.database]
+    server = Couch('spatial.iriscouch.com', 5984)
+    viewspath = options.view.split('/')
+    getstr = ''.join(['/',options.database,'/_design/', viewspath[0],'/_view/',viewspath[1],'?include_docs=false&limit=',str(options.batchsize)])
+    r=server.get(getstr)
+#    r=server.get('/worldclim/_design/temp/_view/tile32?include_docs=true&limit=30000')
+    json = getJson(r)
+    rows = json['rows']
+    count = len(rows)
+    cells={}
+    for row in rows:
+        cellkey=row.get('id')
+        cells[cellkey] = dict(_id=row['id'], _rev=row['value'], _deleted=True)
+    result = database.update(cells.values())
+    t1 = time.time()
+    logging.info('Total elapsed time to remove %s docs: %s' % (count, t1-t0))
+    if count < options.batchsize:
+        return True
+    return False
+
 def _getoptions():
     """Parses command line options and returns them."""
     parser = OptionParser()
@@ -217,6 +246,11 @@ def _getoptions():
                       dest="couchurl",
                       help="The CouchDB URL.",
                       default=None)
+    parser.add_option("-b", 
+                      "--batchsize", 
+                      dest="batchsize",
+                      help="The number of records in a batch.",
+                      default=None)
     return parser.parse_args()[0]
 
 if __name__ == '__main__':
@@ -234,6 +268,37 @@ if __name__ == '__main__':
         
         server.deleteDoc(database, documentkey, rev_id)
         logging.info('Finished deleting document %s.' % (documentkey))
+
+    if command == 'bulkdeletedocs':
+        while bulkDelete(options):
+            pass
+        logging.info('Finished bulk-deleting records.')
+
+    if command == 'testlist':
+        # 'http://spatial.iriscouch.com:5984/worldclim/_design/temp/_view/tile32?include_docs=false&startkey="11433-14260"&limit=5'
+        cdb = couchdb.Server(options.couchurl)
+        database = cdb[options.database]
+        finished = False
+        t0 = time.time()
+        server = Couch('spatial.iriscouch.com', 5984)
+        r=server.get('/worldclim/_design/temp/_view/tile32?include_docs=false&limit=100000')
+        t1 = time.time()
+        logging.info('Elapsed time to get docs: %s' % (t1-t0))
+        t0 = time.time()
+        json = getJson(r)
+        t1 = time.time()
+        logging.info('Elapsed time to json docs: %s' % (t1-t0))
+        rows = json['rows']
+        count = len(rows)
+        if count > 0:
+            cells={}
+            for row in rows:
+#                    database.delete(dict(_id=row['id'], _rev=row['value']))
+                cellkey=row.get('id')
+                cells[cellkey] = dict(_id=row['id'], _rev=row['value'], _deleted=True)
+            result = database.update(cells.values())
+            t1 = time.time()
+            logging.info('Total elapsed time to remove %s docs: %s' % (count, t1-t0))
 
     if command == 'cleanworldclim':
         """Deletes the documents in the given server/database/view."""
