@@ -198,6 +198,18 @@ def execute(options):
     DeletedRecords(conn, couch).execute(chunksize)
 
 def bulkDelete(options):
+    """ Deletes the documents in batches from the given server/database/view.
+
+        Arguments:
+            options - the options parsed from the command line. Uses:
+                database - the CouchDB database to delete from
+                view - the CouchDB view to delete from
+                couchurl - the CouchDB server to delete from
+                batchsize - the number of records to delete in a single batch 
+
+        Example:
+            ./couchutil.py -c bulkdeletedocs -d worldclim -v temp/tile32 -u http://spatial.iriscouch.com:5984 -b 100000 &
+    """
     t0 = time.time()
     cdb = couchdb.Server(options.couchurl)
     database = cdb[options.database]
@@ -216,7 +228,7 @@ def bulkDelete(options):
     result = database.update(cells.values())
     t1 = time.time()
     logging.info('Total elapsed time to remove %s docs: %s' % (count, t1-t0))
-    if count < options.batchsize:
+    if count > 0:
         return True
     return False
 
@@ -259,64 +271,43 @@ if __name__ == '__main__':
     command = options.command.lower()
     
     if command == 'deldoc':
+        """ Deletes a document from the given server/database/key.
+
+            Arguments:
+                options - the options parsed from the command line. Uses:
+                    database - the CouchDB database to delete from
+                    couchurl - the CouchDB server to delete from
+                    documentkey - the identifier of the record to delete 
+        """
         server = Couch(options.couchurl)
         database = options.database
         documentkey = options.documentkey
         r = server.getDoc(database, documentkey)
+        # Can't delete without the revision number
         rev_id = r['_rev']
-        logging.info('Deleting document %s in %s on %s.' % (documentkey, database, options.couchurl))
-        
+        logging.info('Deleting document %s in %s on %s.' % (documentkey, database, options.couchurl))        
         server.deleteDoc(database, documentkey, rev_id)
         logging.info('Finished deleting document %s.' % (documentkey))
 
     if command == 'bulkdeletedocs':
+        """ Delete documents in batches from the given server/database/view until there are none remaining.
+
+            Arguments:
+                options - the options parsed from the command line. Uses:
+                    database - the CouchDB database to delete from
+                    view - the CouchDB view to delete from
+                    couchurl - the CouchDB server to delete from
+                    batchsize - the number of records to delete in a single batch 
+
+            Example:
+                ./couchutil.py -c bulkdeletedocs -d worldclim -v temp/tile32 -u http://spatial.iriscouch.com:5984 -b 100000 &
+        """
         while bulkDelete(options):
             pass
         logging.info('Finished bulk-deleting records.')
-
-    if command == 'testlist':
-        # 'http://spatial.iriscouch.com:5984/worldclim/_design/temp/_view/tile32?include_docs=false&startkey="11433-14260"&limit=5'
-        cdb = couchdb.Server(options.couchurl)
-        database = cdb[options.database]
-        finished = False
-        t0 = time.time()
-        server = Couch('spatial.iriscouch.com', 5984)
-        r=server.get('/worldclim/_design/temp/_view/tile32?include_docs=false&limit=100000')
-        t1 = time.time()
-        logging.info('Elapsed time to get docs: %s' % (t1-t0))
-        t0 = time.time()
-        json = getJson(r)
-        t1 = time.time()
-        logging.info('Elapsed time to json docs: %s' % (t1-t0))
-        rows = json['rows']
-        count = len(rows)
-        if count > 0:
-            cells={}
-            for row in rows:
-#                    database.delete(dict(_id=row['id'], _rev=row['value']))
-                cellkey=row.get('id')
-                cells[cellkey] = dict(_id=row['id'], _rev=row['value'], _deleted=True)
-            result = database.update(cells.values())
-            t1 = time.time()
-            logging.info('Total elapsed time to remove %s docs: %s' % (count, t1-t0))
-
-    if command == 'cleanworldclim':
-        """Deletes the documents in the given server/database/view."""
-        logging.info('Beginning cleanworldclim on %s.' % (options.database+'/'+options.view) )
-        server = couchdb.Server(options.couchurl)
-#        database = server[options.database]
-        database = server[options.database]
-        count = 0
-        for row in database.view(options.view):
-            doc = dict(_id=row.id, _rev=row.value)
-            database.delete(doc)
-            count += 1
-            if count%1000 == 0:
-                logging.info('Deleted %s documents' % (str(count)) )
-        logging.info('Finished deleting documents from view %s.' % (options.database+'/'+options.view))
   
     if command == 'updatetest':
-        """ Use to time the bulkloading of documents to a Couchdb database. Run cleanworldclim to remove documents added with the updatetest command."""
+        """ Use to time the bulkloading of documents to a Couchdb database. Run bulkdeletedocs to remove documents added with the updatetest command."""
         server = couchdb.Server(options.couchurl)
         cdb = server[options.database]
         # Prepare a batch of cells to bulkload.
