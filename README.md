@@ -21,3 +21,4 @@ tar - http://github.com/eightysteele/Spatial-Data-Library/tarball/master
 You can also clone the project with Git by running:
 `$ git clone git://github.com/eightysteele/Spatial-Data-Library`
 
+<iframe src="http://player.vimeo.com/video/29030961?portrait=0" width="400" height="220" frameborder="0"></iframe>
